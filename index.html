@@ -1,0 +1,2617 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>LLM Multi-GPU Optimizer</title>
+    <style>
+        :root {
+            --bg: #18181b;
+            --card: #27272a;
+            --panel: #202023;
+            --mut: #a1a1aa;
+            --txt: #f4f4f5;
+            --br: #3f3f46;
+            --blue: #3b82f6;
+            --green: #22c55e;
+            --purple: #a855f7;
+            --orange: #f97316;
+            --red: #ef4444;
+            --gray: #52525b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 24px 3vw;
+            background: var(--bg);
+            color: var(--txt);
+            font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+            display: flex;
+            justify-content: center;
+        }
+
+        .dashboard {
+            width: min(1900px, 94vw);
+            max-width: none;
+            background: var(--card);
+            border: 1px solid var(--br);
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 10px 30px #0008;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            gap: 28px;
+            margin-bottom: 26px;
+        }
+
+        .title {
+            min-width: 360px;
+            max-width: 980px;
+        }
+
+        .title h1 {
+            margin: 0 0 6px;
+            font-size: 1.55rem;
+        }
+
+        .title p {
+            margin: 0;
+            max-width: 1100px;
+            color: var(--mut);
+            font-size: .88rem;
+            line-height: 1.35;
+        }
+
+        .metrics {
+            display: flex;
+            justify-content: flex-end;
+            gap: 22px;
+            flex-wrap: wrap;
+            max-width: 760px;
+        }
+
+        .metric {
+            min-width: 120px;
+        }
+
+        .metric span {
+            display: block;
+        }
+
+        .mlabel {
+            font-size: .72rem;
+            text-transform: uppercase;
+            color: var(--mut);
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .mval {
+            font-size: 1.18rem;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+            line-height: 1.2;
+        }
+
+        .green {
+            color: var(--green);
+        }
+
+        .red {
+            color: var(--red);
+        }
+
+        .blueText {
+            color: var(--blue);
+        }
+
+        #topSplit {
+            font-size: 1rem;
+            max-width: 560px;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+
+        .help-bar {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            background: #0003;
+            border: 1px solid var(--br);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin: -10px 0 22px;
+        }
+
+        .help-bar b {
+            font-size: .95rem;
+        }
+
+        .help-bar span {
+            color: var(--mut);
+            font-size: .82rem;
+        }
+
+        .help-btn,
+        .guide-close {
+            background: var(--blue);
+            border: 0;
+            color: #fff;
+            border-radius: 8px;
+            padding: 9px 14px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .help-btn:hover,
+        .guide-close:hover {
+            filter: brightness(1.12);
+        }
+
+        .help-btn:focus-visible,
+        .guide-close:focus-visible {
+            outline: 2px solid #fff;
+            outline-offset: 2px;
+        }
+
+        .gpu-visuals {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin: 0 0 32px;
+            padding: 24px 18px;
+            background: #0003;
+            border-radius: 10px;
+            min-height: 170px;
+            overflow: visible;
+        }
+
+        .gpu-box {
+            width: clamp(220px, 13.5vw, 280px);
+            height: 165px;
+            border: 2px solid;
+            border-radius: 10px;
+            padding: 9px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            background: #fff05;
+            position: relative;
+            overflow: visible;
+        }
+
+        .gpu-box.blue {
+            border-color: #3b82f680;
+        }
+
+        .gpu-box.green {
+            border-color: #22c55e80;
+        }
+
+        .gpu-box.purple {
+            border-color: #a855f780;
+        }
+
+        .gpu-box.orange {
+            border-color: #f9731680;
+        }
+
+        .gpu-box.red {
+            border-color: #ef444480;
+        }
+
+        .gpu-title {
+            position: absolute;
+            top: 8px;
+            left: 9px;
+            right: 9px;
+            font-weight: 800;
+            font-size: .86rem;
+            overflow-wrap: anywhere;
+        }
+
+        .gpu-meta {
+            position: absolute;
+            top: 28px;
+            left: 9px;
+            right: 9px;
+            color: var(--mut);
+            font-size: .7rem;
+            line-height: 1.28;
+            overflow-wrap: anywhere;
+        }
+
+        .layer-fill {
+            width: 100%;
+            min-height: 52px;
+            border-radius: 7px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            text-align: center;
+            font-size: .74rem;
+            font-weight: 800;
+            line-height: 1.15;
+            padding: 3px;
+            transition: height .25s;
+            overflow: visible;
+            white-space: normal;
+        }
+
+        .layer-fill span {
+            font-size: .68rem;
+            font-weight: 700;
+        }
+
+        .layer-fill small {
+            font-size: .61rem;
+            color: #ffffffc8;
+        }
+
+        .layer-fill b,
+        .layer-fill span,
+        .layer-fill small {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .blueFill {
+            background: linear-gradient(0deg, #2563ebcc, #3b82f699);
+            border: 1px solid var(--blue);
+        }
+
+        .greenFill {
+            background: linear-gradient(0deg, #16a34acc, #22c55e99);
+            border: 1px solid var(--green);
+        }
+
+        .purpleFill {
+            background: linear-gradient(0deg, #9333eacc, #a855f799);
+            border: 1px solid var(--purple);
+        }
+
+        .orangeFill {
+            background: linear-gradient(0deg, #ea580ccc, #f9731699);
+            border: 1px solid var(--orange);
+        }
+
+        .redFill {
+            background: linear-gradient(0deg, #dc2626cc, #ef444499);
+            border: 1px solid var(--red);
+        }
+
+        .link {
+            align-self: center;
+            min-width: 50px;
+            color: var(--mut);
+            font-size: .64rem;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .link::before {
+            content: "";
+            display: block;
+            height: 2px;
+            background: var(--mut);
+            opacity: .65;
+            border-radius: 2px;
+            margin: 0 0 5px;
+        }
+
+        .chart {
+            margin-bottom: 30px;
+            overflow: visible;
+        }
+
+        .chart-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chart-label {
+            width: 175px;
+            color: var(--mut);
+            font-size: .87rem;
+        }
+
+        .bar-area {
+            position: relative;
+            flex: 1;
+            min-width: 260px;
+            height: 25px;
+            background: #0003;
+            border-radius: 5px;
+            overflow: visible;
+        }
+
+        .bar {
+            position: relative;
+            height: 100%;
+            min-width: 8px;
+            border-radius: 5px;
+            transition: width .25s;
+            color: transparent;
+            text-indent: -9999px;
+            overflow: visible;
+        }
+
+        .bar::after {
+            content: attr(data-label);
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #fff;
+            text-indent: 0;
+            font-size: .78rem;
+            font-weight: 900;
+            white-space: nowrap;
+            text-shadow: 0 1px 4px #000, 0 0 8px #000;
+            z-index: 3;
+        }
+
+        .bar.small::after {
+            left: 12px;
+            right: auto;
+        }
+
+        .bar.blue {
+            background: var(--blue);
+        }
+
+        .bar.gray {
+            background: var(--gray);
+        }
+
+        .bar.red {
+            background: var(--red);
+        }
+
+        .axis {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            padding-left: 175px;
+            color: var(--mut);
+            font-size: .66rem;
+            overflow: visible;
+        }
+
+        .axis span {
+            white-space: nowrap;
+        }
+
+        .axis span:last-child {
+            text-align: right;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: minmax(520px, 1fr) minmax(520px, 1fr);
+            gap: 16px 42px;
+        }
+
+        .section {
+            grid-column: 1 / -1;
+            margin-top: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid var(--br);
+            font-weight: 800;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 230px minmax(180px, 1fr) 96px;
+            gap: 12px;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .row label {
+            position: relative;
+            color: var(--mut);
+            font-size: .86rem;
+        }
+
+        .row input[type="range"] {
+            width: 100%;
+            min-width: 0;
+            height: 4px;
+            background: var(--br);
+            border-radius: 2px;
+            outline: 0;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .row input[type="range"]::-webkit-slider-thumb {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .row input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border: 0;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .row input[type="range"]:focus-visible,
+        .num:focus-visible,
+        select:focus-visible {
+            outline: 2px solid var(--blue);
+            outline-offset: 2px;
+        }
+
+        .num,
+        select {
+            background: #18181b;
+            border: 1px solid var(--br);
+            color: #fff;
+            border-radius: 5px;
+            padding: 5px;
+        }
+
+        .num {
+            width: 96px;
+            text-align: center;
+        }
+
+        .wide {
+            grid-column: 1 / -1;
+        }
+
+        .toggle {
+            display: flex;
+            width: max-content;
+            background: var(--bg);
+            border: 1px solid var(--br);
+            border-radius: 7px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .toggle input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .toggle label {
+            padding: 7px 16px;
+            color: var(--mut);
+            cursor: pointer;
+        }
+
+        .toggle input:checked+label {
+            background: var(--blue);
+            color: #fff;
+            font-weight: 800;
+        }
+
+        .toggle input:focus-visible+label {
+            outline: 2px solid #fff;
+            outline-offset: -2px;
+        }
+
+        .gpu-controls {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(270px, 1fr));
+            gap: 16px;
+        }
+
+        .gpu-card {
+            min-width: 0;
+            background: var(--panel);
+            border: 1px solid var(--br);
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .gpu-card h3 {
+            margin: 0 0 12px;
+            font-size: .95rem;
+        }
+
+        .gpu-card.blue h3 {
+            color: var(--blue);
+        }
+
+        .gpu-card.green h3 {
+            color: var(--green);
+        }
+
+        .gpu-card.purple h3 {
+            color: var(--purple);
+        }
+
+        .gpu-card.orange h3 {
+            color: var(--orange);
+        }
+
+        .gpu-card .row {
+            grid-template-columns: 1fr;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .gpu-card .pair {
+            display: grid;
+            grid-template-columns: minmax(130px, 1fr) 96px;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .pcie-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .pcie-note {
+            color: var(--mut);
+            font-size: .73rem;
+            margin-top: -4px;
+        }
+
+        .hint {
+            grid-column: 1 / -1;
+            color: var(--mut);
+            font-size: .77rem;
+            line-height: 1.45;
+            margin-top: 2px;
+        }
+
+        .guide-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            background: #000a;
+            backdrop-filter: blur(7px);
+            padding: 18px;
+        }
+
+        .guide-modal.open {
+            display: flex;
+            animation: fadeIn .18s ease;
+        }
+
+        .guide-panel {
+            width: min(1600px, 96vw);
+            height: min(900px, 94vh);
+            background: var(--card);
+            border: 1px solid var(--br);
+            border-radius: 16px;
+            box-shadow: 0 22px 70px #000c;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            overflow: hidden;
+        }
+
+        .guide-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--br);
+            padding: 16px 18px;
+        }
+
+        .guide-head h2 {
+            margin: 0;
+            font-size: 1.18rem;
+        }
+
+        .guide-head p {
+            margin: 3px 0 0;
+            color: var(--mut);
+            font-size: .82rem;
+        }
+
+        .guide-body {
+            display: grid;
+            grid-template-columns: 245px 1fr;
+            min-height: 0;
+        }
+
+        .guide-nav {
+            border-right: 1px solid var(--br);
+            background: #0002;
+            padding: 14px;
+            overflow: auto;
+        }
+
+        .guide-nav a {
+            display: block;
+            color: var(--mut);
+            text-decoration: none;
+            padding: 9px 10px;
+            border-radius: 8px;
+            font-size: .82rem;
+        }
+
+        .guide-nav a:hover,
+        .guide-nav a:focus-visible {
+            background: #fff08;
+            color: #fff;
+            outline: none;
+        }
+
+        .guide-main {
+            overflow: auto;
+            padding: 22px 28px;
+            scroll-behavior: smooth;
+        }
+
+        .guide-section {
+            margin: 0 0 24px;
+            max-width: 1040px;
+            scroll-margin-top: 18px;
+        }
+
+        .guide-section h3 {
+            margin: 0 0 10px;
+            font-size: 1.08rem;
+        }
+
+        .guide-section p,
+        .guide-section li {
+            color: #d4d4d8;
+            font-size: .9rem;
+            line-height: 1.55;
+        }
+
+        .guide-section code {
+            background: #0005;
+            border: 1px solid var(--br);
+            border-radius: 5px;
+            padding: 1px 5px;
+        }
+
+        .guide-section details {
+            border: 1px solid var(--br);
+            border-radius: 10px;
+            background: #0002;
+            margin: 10px 0;
+            padding: 10px 12px;
+        }
+
+        .guide-section summary {
+            cursor: pointer;
+            font-weight: 800;
+        }
+
+        .v7-kicker {
+            display: inline-block;
+            color: #bfdbfe;
+            background: #1e3a8a66;
+            border: 1px solid #3b82f680;
+            border-radius: 999px;
+            padding: 4px 9px;
+            font-size: .72rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .v7-callout {
+            border-left: 3px solid var(--blue);
+            background: #0b1220;
+            border-radius: 10px;
+            padding: 11px 13px;
+            margin: 12px 0;
+            color: #dbeafe;
+            font-size: .88rem;
+            line-height: 1.5;
+        }
+
+        .v7-callout.warn {
+            border-left-color: var(--orange);
+            background: #1d1208;
+            color: #fed7aa;
+        }
+
+        .v7-callout.good {
+            border-left-color: var(--green);
+            background: #0d1b12;
+            color: #dcfce7;
+        }
+
+        .v7-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin: 12px 0;
+        }
+
+        .v7-card {
+            background: #0003;
+            border: 1px solid var(--br);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .v7-card h4 {
+            margin: 0 0 7px;
+            font-size: .93rem;
+        }
+
+        .v7-card p {
+            margin: .2rem 0;
+        }
+
+        .v7-eq {
+            background: #111114;
+            border: 1px solid var(--br);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin: 10px 0;
+            color: #fff;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: .82rem;
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+
+        .v7-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: .84rem;
+        }
+
+        .v7-table th,
+        .v7-table td {
+            border: 1px solid var(--br);
+            padding: 8px 9px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .v7-table th {
+            background: #0004;
+        }
+
+        .v7-table td {
+            color: #d4d4d8;
+        }
+
+        .v7-flow {
+            display: grid;
+            grid-template-columns: 1fr 64px 1fr 64px 1fr;
+            align-items: center;
+            gap: 8px;
+            background: #0003;
+            border: 1px solid var(--br);
+            border-radius: 14px;
+            padding: 14px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+
+        .v7-flow.four {
+            grid-template-columns: 1fr 64px 1fr 64px 1fr 64px 1fr;
+        }
+
+        .v7-flow.compact {
+            grid-template-columns: 1fr 64px 1fr;
+        }
+
+        .v7-node {
+            min-height: 86px;
+            border: 1px solid var(--br);
+            border-radius: 12px;
+            background: #111827;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .v7-node b {
+            font-size: .86rem;
+        }
+
+        .v7-node span {
+            color: var(--mut);
+            font-size: .72rem;
+            margin-top: 4px;
+            line-height: 1.35;
+        }
+
+        .v7-node.blue {
+            border-color: #3b82f688;
+        }
+
+        .v7-node.green {
+            border-color: #22c55e88;
+        }
+
+        .v7-node.purple {
+            border-color: #a855f788;
+        }
+
+        .v7-node.orange {
+            border-color: #f9731688;
+        }
+
+        .v7-node.red {
+            border-color: #ef444488;
+        }
+
+        .v7-edge {
+            height: 10px;
+            border-radius: 999px;
+            background: #3f3f46;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .v7-edge::before,
+        .v7-edge::after {
+            content: "";
+            position: absolute;
+            top: 1px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue);
+            box-shadow: 0 0 12px var(--blue);
+            animation: v7Move 1.35s linear infinite;
+        }
+
+        .v7-edge::after {
+            animation-delay: .55s;
+            opacity: .7;
+        }
+
+        .v7-edge.green::before,
+        .v7-edge.green::after {
+            background: var(--green);
+            box-shadow: 0 0 12px var(--green);
+        }
+
+        .v7-edge.purple::before,
+        .v7-edge.purple::after {
+            background: var(--purple);
+            box-shadow: 0 0 12px var(--purple);
+        }
+
+        .v7-edge.orange::before,
+        .v7-edge.orange::after {
+            background: var(--orange);
+            box-shadow: 0 0 12px var(--orange);
+        }
+
+        .v7-edge.red::before,
+        .v7-edge.red::after {
+            background: var(--red);
+            box-shadow: 0 0 12px var(--red);
+        }
+
+        .v7-roof {
+            height: 250px;
+            background: linear-gradient(135deg, #05070c, #111827);
+            border: 1px solid var(--br);
+            border-radius: 14px;
+            margin: 12px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .v7-roof svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .v7-roof .axis {
+            stroke: #71717a;
+            stroke-width: 2;
+        }
+
+        .v7-roof .grid {
+            stroke: #27272a;
+            stroke-width: 1;
+        }
+
+        .v7-roof .roof {
+            stroke: #3b82f6;
+            stroke-width: 4;
+            fill: none;
+            filter: drop-shadow(0 0 8px #3b82f688);
+        }
+
+        .v7-roof .pt {
+            fill: #22c55e;
+            stroke: #fff;
+            stroke-width: 2;
+            animation: v7Pulse 1.8s ease-in-out infinite;
+        }
+
+        .v7-roof text {
+            fill: #d4d4d8;
+            font-size: 12px;
+        }
+
+        .v7-router {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 12px;
+            align-items: center;
+            background: #0003;
+            border: 1px solid var(--br);
+            border-radius: 14px;
+            padding: 14px;
+            margin: 12px 0;
+        }
+
+        .v7-router-core {
+            border: 1px solid #3b82f680;
+            background: #0b1220;
+            border-radius: 12px;
+            min-height: 98px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+        }
+
+        .v7-router-core::after {
+            content: "animated top-k routing";
+            position: absolute;
+            bottom: -11px;
+            background: var(--card);
+            border: 1px solid var(--br);
+            border-radius: 999px;
+            padding: 2px 8px;
+            color: var(--mut);
+            font-size: .68rem;
+        }
+
+        .v7-experts {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .v7-expert {
+            border: 1px solid var(--br);
+            border-radius: 10px;
+            background: #0004;
+            color: #71717a;
+            padding: 10px;
+            text-align: center;
+            font-size: .78rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .v7-expert.on {
+            background: #14532d88;
+            color: #dcfce7;
+            border-color: #22c55e99;
+            animation: v7Expert 1.45s ease-in-out infinite;
+        }
+
+        .v7-expert.on:nth-child(3) {
+            animation-delay: .35s;
+        }
+
+        .v7-sessions {
+            background: #0003;
+            border: 1px solid var(--br);
+            border-radius: 14px;
+            padding: 14px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+
+        .v7-lane {
+            display: grid;
+            grid-template-columns: 90px 1fr 1fr 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+            margin: 8px 0;
+        }
+
+        .v7-lane b {
+            font-size: .78rem;
+            color: #d4d4d8;
+        }
+
+        .v7-slot {
+            height: 34px;
+            border: 1px solid var(--br);
+            border-radius: 9px;
+            background: #111827;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .v7-slot::after {
+            content: "";
+            position: absolute;
+            top: 9px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            left: -20px;
+            background: var(--blue);
+            box-shadow: 0 0 10px var(--blue);
+            animation: v7Session 4.8s linear infinite;
+        }
+
+        .v7-lane:nth-child(2) .v7-slot::after {
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+            animation-delay: .45s;
+        }
+
+        .v7-lane:nth-child(3) .v7-slot::after {
+            background: var(--purple);
+            box-shadow: 0 0 10px var(--purple);
+            animation-delay: .9s;
+        }
+
+        .v7-slot:nth-child(3)::after {
+            animation-delay: .7s;
+        }
+
+        .v7-slot:nth-child(4)::after {
+            animation-delay: 1.4s;
+        }
+
+        .v7-slot:nth-child(5)::after {
+            animation-delay: 2.1s;
+        }
+
+        .v7-lane:nth-child(2) .v7-slot:nth-child(3)::after {
+            animation-delay: 1.15s;
+        }
+
+        .v7-lane:nth-child(2) .v7-slot:nth-child(4)::after {
+            animation-delay: 1.85s;
+        }
+
+        .v7-lane:nth-child(2) .v7-slot:nth-child(5)::after {
+            animation-delay: 2.55s;
+        }
+
+        .v7-lane:nth-child(3) .v7-slot:nth-child(3)::after {
+            animation-delay: 1.6s;
+        }
+
+        .v7-lane:nth-child(3) .v7-slot:nth-child(4)::after {
+            animation-delay: 2.3s;
+        }
+
+        .v7-lane:nth-child(3) .v7-slot:nth-child(5)::after {
+            animation-delay: 3s;
+        }
+
+        .v7-legend-row {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 10px;
+            margin: 7px 0;
+        }
+
+        .v7-chip {
+            display: inline-block;
+            border: 1px solid var(--br);
+            border-radius: 999px;
+            padding: 3px 8px;
+            background: #0004;
+            color: #e5e7eb;
+            font-size: .72rem;
+            font-weight: 800;
+        }
+
+        .fieldHelp {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-left: 7px;
+            border: 1px solid var(--br);
+            border-radius: 50%;
+            font-size: .68rem;
+            color: #fff;
+            background: #0004;
+            cursor: help;
+            vertical-align: 1px;
+        }
+
+        .fieldTip {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 7px);
+            z-index: 30;
+            width: min(360px, 80vw);
+            background: #111114;
+            border: 1px solid var(--br);
+            box-shadow: 0 12px 32px #000b;
+            border-radius: 9px;
+            padding: 10px 11px;
+            color: #e4e4e7;
+            font-size: .77rem;
+            line-height: 1.42;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-4px);
+            transition: .14s;
+            pointer-events: none;
+        }
+
+        .row label:hover .fieldTip,
+        .fieldHelp:focus+.fieldTip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes v7Move {
+            0% {
+                left: -12px;
+                opacity: 0;
+            }
+
+            12% {
+                opacity: 1;
+            }
+
+            88% {
+                opacity: 1;
+            }
+
+            100% {
+                left: calc(100% + 12px);
+                opacity: 0;
+            }
+        }
+
+        @keyframes v7Pulse {
+            50% {
+                r: 8;
+                filter: drop-shadow(0 0 10px #22c55e);
+            }
+        }
+
+        @keyframes v7Expert {
+            50% {
+                filter: brightness(1.4);
+                transform: translateY(-1px);
+            }
+        }
+
+        @keyframes v7Session {
+            0% {
+                left: -20px;
+                opacity: 0;
+            }
+
+            12% {
+                opacity: 1;
+            }
+
+            80% {
+                opacity: 1;
+            }
+
+            100% {
+                left: calc(100% + 20px);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 1280px) {
+            .dashboard {
+                width: 96vw;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            .gpu-controls {
+                grid-template-columns: repeat(2, minmax(300px, 1fr));
+            }
+
+            .metrics {
+                justify-content: flex-start;
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 980px) {
+
+            .v7-grid,
+            .v7-router {
+                grid-template-columns: 1fr;
+            }
+
+            .v7-flow,
+            .v7-flow.four,
+            .v7-flow.compact {
+                grid-template-columns: 1fr;
+            }
+
+            .v7-edge {
+                height: 26px;
+            }
+
+            .v7-lane {
+                grid-template-columns: 1fr;
+            }
+
+            .v7-experts {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .guide-main {
+                padding: 16px;
+            }
+
+            .guide-nav {
+                max-height: 120px;
+            }
+        }
+
+        @media (max-width: 860px) {
+            .help-bar {
+                display: block;
+            }
+
+            .help-btn {
+                margin-top: 10px;
+            }
+
+            .guide-body {
+                grid-template-columns: 1fr;
+            }
+
+            .guide-nav {
+                display: flex;
+                gap: 6px;
+                overflow-x: auto;
+                border-right: 0;
+                border-bottom: 1px solid var(--br);
+            }
+
+            .guide-nav a {
+                white-space: nowrap;
+            }
+
+            .guide-panel {
+                height: 94vh;
+            }
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 10px;
+            }
+
+            .dashboard {
+                width: 100%;
+                padding: 16px;
+            }
+
+            .header {
+                display: block;
+            }
+
+            .title {
+                min-width: 0;
+            }
+
+            .metrics {
+                margin-top: 12px;
+            }
+
+            .metric {
+                display: inline-block;
+                margin: 8px 16px 0 0;
+            }
+
+            .row {
+                grid-template-columns: 1fr;
+            }
+
+            .num,
+            .row input[type="range"],
+            select {
+                width: 100%;
+            }
+
+            .gpu-controls {
+                grid-template-columns: 1fr;
+            }
+
+            .gpu-card .pair {
+                grid-template-columns: 1fr 96px;
+            }
+
+            .axis {
+                padding-left: 0;
+            }
+
+            .chart-row {
+                display: block;
+            }
+
+            .chart-label {
+                width: auto;
+                margin-bottom: 5px;
+            }
+
+            .bar-area {
+                min-width: 0;
+            }
+
+            .bar::after {
+                left: 10px;
+                right: auto;
+                font-size: .72rem;
+            }
+
+            .gpu-box {
+                width: min(100%, 280px);
+            }
+
+            .v7-legend-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <div class="title">
+                <h1>LLM Multi-GPU Optimizer</h1>
+                <p id="subStatus">Roofline decode estimator for contiguous layer/block split. Tensor-parallel results
+                    require calibration.</p>
+            </div>
+
+            <div class="metrics">
+                <div class="metric">
+                    <span class="mlabel">Single-session throughput</span>
+                    <span class="mval" id="topTps">0.00 t/s</span>
+                </div>
+                <div class="metric">
+                    <span class="mlabel">Latency</span>
+                    <span class="mval" id="topLat">0.0 ms</span>
+                </div>
+                <div class="metric">
+                    <span class="mlabel">Layer Split</span>
+                    <span class="mval" id="topSplit">0</span>
+                </div>
+                <div class="metric">
+                    <span class="mlabel">Placement Status</span>
+                    <span class="mval green" id="topVram">OK</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="help-bar">
+            <div>
+                <b>Need the theory behind the numbers?</b><br>
+                <span>Open the built-in guide for Dense, MoE, Roofline timing, PCIe, CPU/RAM offload, parameter sourcing
+                    and result interpretation.</span>
+            </div>
+            <button class="help-btn" id="openGuide" type="button">Open Theory Guide</button>
+        </div>
+
+        <div class="gpu-visuals" id="visuals"></div>
+
+        <div class="chart">
+            <div class="chart-row">
+                <div class="chart-label">Best estimated split</div>
+                <div class="bar-area">
+                    <div class="bar blue" id="barOpt">0.00 t/s</div>
+                </div>
+            </div>
+            <div class="chart-row">
+                <div class="chart-label">GPU 1 + CPU only</div>
+                <div class="bar-area">
+                    <div class="bar gray" id="barSingle">0.00 t/s</div>
+                </div>
+            </div>
+            <div class="axis" id="axis"></div>
+        </div>
+
+        <div class="controls" id="controls"></div>
+    </div>
+
+    <div class="guide-modal" id="guideModal" aria-hidden="true">
+        <div class="guide-panel" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+            <div class="guide-head">
+                <div>
+                    <h2 id="guideTitle">LLM Hardware Optimizer Guide</h2>
+                    <p>Dense, MoE, Roofline timing, layer split, tensor split, multi-session throughput, PCIe topology
+                        and how to fill every important input.</p>
+                </div>
+                <button class="guide-close" id="closeGuide" type="button">Close</button>
+            </div>
+
+            <div class="guide-body">
+                <nav class="guide-nav">
+                    <a href="#g-overview">1. Mental model</a>
+                    <a href="#g-fill">2. How to fill the calculator</a>
+                    <a href="#g-dense-moe">3. Dense vs MoE</a>
+                    <a href="#g-roofline">4. Roofline timing</a>
+                    <a href="#g-layer">5. Layer split chain</a>
+                    <a href="#g-tensor">6. Tensor split</a>
+                    <a href="#g-sessions">7. Parallel sessions</a>
+                    <a href="#g-pcie">8. PCIe and P2P</a>
+                    <a href="#g-cpu">9. CPU and RAM</a>
+                    <a href="#g-results">10. Reading results</a>
+                    <a href="#g-calibration">11. Calibration</a>
+                    <a href="#g-limits">12. Limits</a>
+                </nav>
+
+                <main class="guide-main">
+                    <section class="guide-section" id="g-overview">
+                        <span class="v7-kicker">Purpose</span>
+                        <h3>1. Mental model</h3>
+                        <p>This calculator estimates autoregressive decode speed for local LLM inference. Decode means
+                            the model generates one new token at a time. The token passes through all transformer
+                            layers. If layers are distributed across GPUs, the activation moves through a GPU chain.</p>
+                        <div class="v7-flow four">
+                            <div class="v7-node blue"><b>Store</b><span>weights and KV cache occupy VRAM or RAM</span>
+                            </div>
+                            <div class="v7-edge"></div>
+                            <div class="v7-node green"><b>Read</b><span>active weight bytes and KV bytes are read for
+                                    each token</span></div>
+                            <div class="v7-edge green"></div>
+                            <div class="v7-node purple"><b>Compute</b><span>active parameters create FLOPs</span></div>
+                            <div class="v7-edge purple"></div>
+                            <div class="v7-node orange"><b>Transfer</b><span>activations cross device boundaries</span>
+                            </div>
+                        </div>
+                        <div class="v7-eq">single_session_latency = sum(device_block_time) + sum(boundary_transfer_time)
+                            single_session_tokens_per_second = 1 / single_session_latency</div>
+                        <div class="v7-callout">The absolute number is an estimate. The most useful output is the
+                            bottleneck map: whether the configuration is limited by VRAM, VRAM bandwidth, effective
+                            TFLOPS, PCIe, RAM bandwidth or CPU compute.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-fill">
+                        <span class="v7-kicker">Inputs</span>
+                        <h3>2. How to fill the calculator</h3>
+                        <p>Use the calculator as a hardware planning tool. Start with real model values, then real GPU
+                            specifications, then calibrate uncertain values such as effective TFLOPS and activation
+                            transfer size.</p>
+                        <table class="v7-table">
+                            <tr>
+                                <th>Input</th>
+                                <th>What to enter</th>
+                                <th>Where to find it</th>
+                            </tr>
+                            <tr>
+                                <td>Total Parameters</td>
+                                <td>Total stored parameters. For Dense, this is the same number you normally see in the
+                                    model name. For MoE, this includes all experts, even inactive ones.</td>
+                                <td>Model card, paper, config file, architecture report, Hugging Face page.</td>
+                            </tr>
+                            <tr>
+                                <td>Active Parameters / Token</td>
+                                <td>For Dense, use total parameters. For MoE, use the active parameter count per token.
+                                    If unknown, estimate from active experts plus shared dense parts.</td>
+                                <td>Look for "active parameters", "experts per token", "top-k", "routed experts",
+                                    "shared experts".</td>
+                            </tr>
+                            <tr>
+                                <td>Bytes per Parameter</td>
+                                <td>Approximate quantized storage size. FP16/BF16 = 2, FP8/Q8 = 1, Q4 = 0.5, Q3 = 0.375
+                                    before metadata overhead.</td>
+                                <td>Quantization format, model filename, runtime loader output.</td>
+                            </tr>
+                            <tr>
+                                <td>KV Cache Read + Storage</td>
+                                <td>A compact estimate that combines KV cache storage pressure and per-token KV read
+                                    pressure. Increase it with context length, batch size and parallel sessions.</td>
+                                <td>Runtime memory report, engine logs, or estimate from layers, context, KV heads and
+                                    dtype.</td>
+                            </tr>
+                            <tr>
+                                <td>FLOPs per Active Parameter</td>
+                                <td>Use 2 as a practical first approximation for multiply-add dominated inference.
+                                    Increase if you want to include additional overhead.</td>
+                                <td>Keep default first, then calibrate against measured tokens/s.</td>
+                            </tr>
+                            <tr>
+                                <td>GPU VRAM</td>
+                                <td>Physical VRAM minus any reservation you want to exclude. GPU 1 also has OS buffer.
+                                </td>
+                                <td>GPU specs, nvidia-smi, GPU-Z, HWiNFO.</td>
+                            </tr>
+                            <tr>
+                                <td>GPU Memory Bandwidth</td>
+                                <td>VRAM bandwidth, not PCIe bandwidth.</td>
+                                <td>Search "GPU name memory bandwidth".</td>
+                            </tr>
+                            <tr>
+                                <td>Effective TFLOPS</td>
+                                <td>Realistic compute throughput for your inference workload. Usually lower than peak
+                                    spec-sheet TFLOPS.</td>
+                                <td>Start from specs, reduce conservatively, then calibrate with benchmark.</td>
+                            </tr>
+                            <tr>
+                                <td>PCIe Gen and Lanes</td>
+                                <td>Electrical PCIe generation and lane count for each GPU. Physical slot size can
+                                    differ from electrical lane count.</td>
+                                <td>Motherboard manual, BIOS, GPU-Z, HWiNFO, lspci, nvidia-smi topo -m.</td>
+                            </tr>
+                            <tr>
+                                <td>Activation Transfer</td>
+                                <td>Approximate activation payload crossing device boundaries per generated token.
+                                    Increase for batching or multiple sessions.</td>
+                                <td>Use default first. Calibrate if PCIe transfer seems too low or too high.</td>
+                            </tr>
+                        </table>
+                        <div class="v7-callout good">For a normal single-user interactive estimate: enter one model, one
+                            context size, one active token path, and leave Activation Transfer near the default. For
+                            multiple parallel sessions: scale KV Cache and Activation Transfer upward.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-dense-moe">
+                        <span class="v7-kicker">Architecture</span>
+                        <h3>3. Dense vs MoE</h3>
+                        <div class="v7-grid">
+                            <div class="v7-card">
+                                <h4>Dense model</h4>
+                                <p>Nearly every parameter participates for every token. A 70B dense model behaves
+                                    roughly like 70B active parameters per generated token.</p>
+                                <div class="v7-eq">active_parameters ≈ total_parameters</div>
+                            </div>
+                            <div class="v7-card">
+                                <h4>MoE model</h4>
+                                <p>The model stores many experts, but the router activates only selected experts for
+                                    each token. Storage follows total parameters. Compute and active reads follow active
+                                    parameters.</p>
+                                <div class="v7-eq">active_parameters &lt; total_parameters</div>
+                            </div>
+                        </div>
+                        <div class="v7-router">
+                            <div class="v7-router-core"><b>Token</b><span
+                                    style="color:var(--mut);font-size:.78rem;margin-top:4px">router chooses top-k
+                                    experts</span></div>
+                            <div class="v7-experts">
+                                <div class="v7-expert on">Expert 1 active</div>
+                                <div class="v7-expert">Expert 2 stored</div>
+                                <div class="v7-expert on">Expert 3 active</div>
+                                <div class="v7-expert">Expert 4 stored</div>
+                                <div class="v7-expert">Expert 5 stored</div>
+                                <div class="v7-expert">Expert 6 stored</div>
+                                <div class="v7-expert">Expert 7 stored</div>
+                                <div class="v7-expert">Expert 8 stored</div>
+                            </div>
+                        </div>
+                        <div class="v7-eq">stored_GB = total_parameters_B * bytes_per_parameter + KV_cache_GB
+                            active_read_GB_per_token = active_parameters_B * bytes_per_parameter + KV_cache_GB
+                            compute_FLOPs_per_token = active_parameters_B * 1e9 * FLOPs_per_active_parameter</div>
+                        <div class="v7-callout warn">MoE does not remove all dense work. Attention, router,
+                            normalization, shared experts and KV cache still exist. Active parameters are averaged
+                            across the whole model, so real layer-level load may be uneven.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-roofline">
+                        <span class="v7-kicker">Performance model</span>
+                        <h3>4. Roofline timing</h3>
+                        <p>Each device block has a memory time and a compute time. The larger one wins. This is the
+                            simplified Roofline rule used by the calculator.</p>
+                        <div class="v7-roof">
+                            <svg viewBox="0 0 760 250" preserveAspectRatio="none">
+                                <line class="grid" x1="70" y1="50" x2="720" y2="50"></line>
+                                <line class="grid" x1="70" y1="100" x2="720" y2="100"></line>
+                                <line class="grid" x1="70" y1="150" x2="720" y2="150"></line>
+                                <line class="axis" x1="70" y1="210" x2="720" y2="210"></line>
+                                <line class="axis" x1="70" y1="25" x2="70" y2="210"></line>
+                                <path class="roof" id="roofPath" d="M80 205 L260 96 L710 96"></path>
+                                <circle class="pt" r="6">
+                                    <animateMotion dur="6s" repeatCount="indefinite" keyPoints="0;0.33;1;0.33;0"
+                                        keyTimes="0;0.35;0.7;0.86;1" calcMode="linear">
+                                        <mpath href="#roofPath"></mpath>
+                                    </animateMotion>
+                                </circle>
+                                <text x="300" y="235">arithmetic intensity</text>
+                                <text x="12" y="120" transform="rotate(-90 12,120)">performance</text>
+                                <text x="115" y="150">bandwidth-limited slope</text>
+                                <text x="520" y="84">compute ceiling</text>
+                            </svg>
+                        </div>
+                        <div class="v7-eq">memory_time = active_read_GB_for_block / memory_bandwidth_GBps
+                            compute_time = FLOPs_for_block / effective_FLOPS
+                            block_time = max(memory_time, compute_time)</div>
+                        <p>If the box says <code>BW bound</code>, memory bandwidth dominates. If it says
+                            <code>FLOPS bound</code>, compute dominates. Effective TFLOPS should normally be lower than
+                            theoretical peak because real inference kernels are not ideal peak benchmarks.
+                        </p>
+                    </section>
+
+                    <section class="guide-section" id="g-layer">
+                        <span class="v7-kicker">Modeled by calculator</span>
+                        <h3>5. Layer split chain</h3>
+                        <p>The calculator models contiguous layer blocks. GPU 1 may receive the first part of the
+                            network, GPU 2 the next part, GPU 3 the next part, and so on. For each generated token, the
+                            activation travels through the chain.</p>
+                        <div class="v7-flow four">
+                            <div class="v7-node blue"><b>Input token</b><span>embedding and first layer block</span>
+                            </div>
+                            <div class="v7-edge"></div>
+                            <div class="v7-node green"><b>GPU 1 block</b><span>reads local weights, computes
+                                    layers</span></div>
+                            <div class="v7-edge green"></div>
+                            <div class="v7-node purple"><b>GPU 2 block</b><span>receives activation, continues</span>
+                            </div>
+                            <div class="v7-edge purple"></div>
+                            <div class="v7-node orange"><b>Output block</b><span>final layers and logits</span></div>
+                        </div>
+                        <div class="v7-eq">layer_block_time = assigned_layers * per_layer_time
+                            boundary_time = activation_GB / link_GBps
+                            single_session_latency = sum(layer_block_time) + sum(boundary_time)</div>
+                        <p>This is why the visual boxes show processing time per block and the lines show transfer time.
+                            If everything fits in VRAM, PCIe usually carries activations, not full model weights.</p>
+                        <div class="v7-callout warn">The optimizer searches the best estimated contiguous layer-chain
+                            ordering. Real inference engines may constrain device order, CPU offload placement or
+                            tensor-parallel communication.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-tensor">
+                        <span class="v7-kicker">Not the same as layer split</span>
+                        <h3>6. Tensor split and tensor parallelism</h3>
+                        <p>Tensor split means a single layer's tensors are divided across multiple GPUs. Instead of GPU
+                            1 owning layers 0 to 20 and GPU 2 owning layers 21 to 40, both GPUs participate inside the
+                            same layer. This can combine compute and memory capacity, but it also introduces frequent
+                            communication inside every layer.</p>
+                        <div class="v7-flow compact">
+                            <div class="v7-node blue"><b>Layer N shard A</b><span>GPU 1 computes part of matmul</span>
+                            </div>
+                            <div class="v7-edge purple"></div>
+                            <div class="v7-node green"><b>Layer N shard B</b><span>GPU 2 computes another part, then
+                                    results are synchronized</span></div>
+                        </div>
+                        <div class="v7-grid">
+                            <div class="v7-card">
+                                <h4>Layer split</h4>
+                                <p>Communication happens mainly between layer blocks. It is usually one activation
+                                    transfer per boundary per token. This calculator models this mode directly.</p>
+                            </div>
+                            <div class="v7-card">
+                                <h4>Tensor split</h4>
+                                <p>Communication can happen inside every layer, often through all-reduce, all-gather or
+                                    reduce-scatter style operations. PCIe can become much more important.</p>
+                            </div>
+                        </div>
+                        <div class="v7-eq">ideal_tensor_parallel_time ≈ max(
+                            sharded_memory_time,
+                            sharded_compute_time,
+                            collective_communication_time
+                            )</div>
+                        <p><b>How to use this calculator for tensor split:</b> do not treat the result as exact. Use it
+                            as a rough upper bound only when interconnect is very fast and scaling is efficient. For
+                            consumer GPUs connected through PCIe, tensor split may be limited by communication, so real
+                            speed can be lower than a layer-split estimate.</p>
+                        <table class="v7-table">
+                            <tr>
+                                <th>Situation</th>
+                                <th>How to approximate</th>
+                            </tr>
+                            <tr>
+                                <td>Runtime uses layer/block split</td>
+                                <td>Use the calculator normally. Enter each GPU separately.</td>
+                            </tr>
+                            <tr>
+                                <td>Runtime uses tensor split across PCIe GPUs</td>
+                                <td>Use normal GPU values, but expect extra communication not fully modeled. Increase
+                                    Activation Transfer and reduce Effective TFLOPS to calibrate.</td>
+                            </tr>
+                            <tr>
+                                <td>Runtime uses tensor split over NVLink/high-speed interconnect</td>
+                                <td>The model can be closer after calibration. Effective TFLOPS may be higher because
+                                    all GPUs cooperate inside layers.</td>
+                            </tr>
+                            <tr>
+                                <td>You want a quick virtual-GPU approximation</td>
+                                <td>Sum VRAM, estimate combined TFLOPS and bandwidth with an efficiency factor, then
+                                    calibrate. This file keeps physical GPUs because it is primarily a layer-chain
+                                    estimator.</td>
+                            </tr>
+                        </table>
+                        <div class="v7-callout warn">If a tool calls its option "tensor split", verify what it actually
+                            does. Some runtimes use the term for weight distribution ratios, while true tensor
+                            parallelism implies frequent synchronization inside layers.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-sessions">
+                        <span class="v7-kicker">Throughput mode</span>
+                        <h3>7. Parallel multi-session inference</h3>
+                        <p>A single chat session sends one token through the full chain, then the next token. Multiple
+                            sessions can be interleaved or batched. Then several tokens from different sessions can
+                            occupy different stages of the GPU chain at the same time.</p>
+                        <div class="v7-sessions">
+                            <div class="v7-lane"><b>Session A</b>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                            </div>
+                            <div class="v7-lane"><b>Session B</b>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                            </div>
+                            <div class="v7-lane"><b>Session C</b>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                                <div class="v7-slot"></div>
+                            </div>
+                            <div class="v7-legend-row"><span class="v7-chip">Pipeline intuition</span><span>after
+                                    warm-up, different sessions can be in different GPU blocks at the same time if the
+                                    inference engine schedules them that way.</span></div>
+                        </div>
+                        <div class="v7-grid">
+                            <div class="v7-card">
+                                <h4>Latency estimate</h4>
+                                <p>For one interactive session, use the calculator normally. The token must pass through
+                                    all blocks, so latency is the sum of block and transfer times.</p>
+                            </div>
+                            <div class="v7-card">
+                                <h4>Throughput estimate</h4>
+                                <p>For many sessions, steady-state throughput can become limited by the slowest stage
+                                    rather than the sum of all stages, but only if batching/pipelining is actually used.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="v7-eq">single_session_latency ≈ sum(stage_times)
+                            ideal_pipeline_throughput_with_many_sessions ≈ 1 / max(stage_time)
+                            real_multi_session_throughput = lower because of scheduling, KV cache, batching overhead and
+                            memory pressure</div>
+                        <p><b>How to fill the calculator for multiple sessions:</b></p>
+                        <ul>
+                            <li>Multiply KV Cache by the number of active sessions or by the effective batch size.</li>
+                            <li>Increase Activation Transfer roughly with batch size because more activations cross the
+                                GPU chain.</li>
+                            <li>Raise Effective TFLOPS only if your engine really becomes more compute-efficient with
+                                batching.</li>
+                            <li>Interpret the top tokens/s metric as single-session decode speed unless you manually
+                                calibrate for batching.</li>
+                        </ul>
+                        <div class="v7-callout">For a practical UI, a future version could add "Parallel Sessions" and
+                            "Batch Efficiency" sliders. For now, you can approximate this manually through KV Cache,
+                            Activation Transfer and Effective TFLOPS.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-pcie">
+                        <span class="v7-kicker">Interconnect</span>
+                        <h3>8. PCIe, lanes and P2P</h3>
+                        <p>Each GPU has its own host link. The calculator converts PCIe generation and lane count into
+                            approximate one-direction payload bandwidth.</p>
+                        <table class="v7-table">
+                            <tr>
+                                <th>Generation</th>
+                                <th>Approx payload per lane per direction</th>
+                                <th>x16 approximate</th>
+                            </tr>
+                            <tr>
+                                <td>PCIe 3.0</td>
+                                <td>0.985 GB/s</td>
+                                <td>15.75 GB/s</td>
+                            </tr>
+                            <tr>
+                                <td>PCIe 4.0</td>
+                                <td>1.969 GB/s</td>
+                                <td>31.50 GB/s</td>
+                            </tr>
+                            <tr>
+                                <td>PCIe 5.0</td>
+                                <td>3.938 GB/s</td>
+                                <td>63.01 GB/s</td>
+                            </tr>
+                            <tr>
+                                <td>PCIe 6.0</td>
+                                <td>7.563 GB/s</td>
+                                <td>121.01 GB/s</td>
+                            </tr>
+                        </table>
+                        <div class="v7-flow">
+                            <div class="v7-node blue"><b>Direct P2P</b><span>GPU to GPU activation path</span></div>
+                            <div class="v7-edge purple"></div>
+                            <div class="v7-node purple"><b>Effective link</b><span>conservative min(PCIe A, PCIe
+                                    B)</span></div>
+                            <div class="v7-edge orange"></div>
+                            <div class="v7-node red"><b>Host fallback</b><span>GPU A to RAM to GPU B</span></div>
+                        </div>
+                        <div class="v7-eq">Direct P2P:
+                            T = activation_GB / min(PCIe_A, PCIe_B)
+
+                            Via Host RAM:
+                            T = activation_GB/PCIe_A + 2*activation_GB/RAM_BW + activation_GB/PCIe_B</div>
+                        <p>PCIe matters little when only small activations move between a few GPU blocks. It matters a
+                            lot when CPU/RAM participates, P2P is disabled, activation size is large, or true tensor
+                            parallelism communicates inside every layer.</p>
+                        <div class="v7-callout warn">Via Host RAM is a conservative staging estimate. Real behavior
+                            depends on DMA, chipset topology, NUMA, pinned memory and whether transfers overlap.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-cpu">
+                        <span class="v7-kicker">Offload</span>
+                        <h3>9. CPU and RAM</h3>
+                        <p>In this calculator, CPU/RAM means spilled layers are executed by CPU and read from system
+                            RAM. PCIe is used only when activations cross between GPU blocks and CPU blocks.</p>
+                        <div class="v7-flow compact">
+                            <div class="v7-node green"><b>GPU block</b><span>activation exits GPU</span></div>
+                            <div class="v7-edge orange"></div>
+                            <div class="v7-node red"><b>CPU/RAM block</b><span>weights read from RAM, compute on
+                                    CPU</span></div>
+                        </div>
+                        <div class="v7-eq">CPU_memory_time = active_read_GB_CPU_block / RAM_bandwidth_GBps
+                            CPU_compute_time = FLOPs_CPU_block / CPU_effective_FLOPS
+                            CPU_block_time = max(CPU_memory_time, CPU_compute_time)</div>
+                        <div class="v7-callout warn">This is not the same as GPU weight streaming from RAM. If your
+                            runtime streams weights to GPU, PCIe carries weight traffic and should be modeled much more
+                            aggressively.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-results">
+                        <span class="v7-kicker">Output</span>
+                        <h3>10. Reading results</h3>
+                        <ul>
+                            <li><b>Single-session throughput:</b> estimated tokens per second for one autoregressive
+                                session using the best estimated layer-chain hardware split.</li>
+                            <li><b>Latency:</b> estimated single-token latency for one session.</li>
+                            <li><b>Layer Split:</b> layer count assigned to each used device block.</li>
+                            <li><b>Placement Status:</b> whether all layers fit into GPU VRAM or CPU/RAM is used.</li>
+                            <li><b>Box time:</b> block processing time on that device, excluding transfer labels between
+                                boxes.</li>
+                            <li><b>BW bound / FLOPS bound:</b> which part of the Roofline estimate dominates that block.
+                            </li>
+                        </ul>
+                        <div class="v7-callout good">A fast setup is not always the one with the most VRAM. The best
+                            setup balances storage capacity, per-layer speed and transfer overhead.</div>
+                    </section>
+
+                    <section class="guide-section" id="g-calibration">
+                        <span class="v7-kicker">Accuracy</span>
+                        <h3>11. Calibration workflow</h3>
+                        <ol>
+                            <li>Choose one real model, quantization and context length.</li>
+                            <li>Measure real decode tokens/s with your inference engine.</li>
+                            <li>Enter exact GPU VRAM, memory bandwidth and PCIe lane configuration.</li>
+                            <li>Adjust Effective TFLOPS and Activation Transfer until the estimate is close.</li>
+                            <li>Use the calibrated setup to compare GPU combinations, PCIe lane layouts and MoE/Dense
+                                alternatives.</li>
+                        </ol>
+                        <div class="v7-grid">
+                            <div class="v7-card">
+                                <h4>Estimate too fast?</h4>
+                                <p>Lower Effective TFLOPS, increase Activation Transfer, increase KV Cache, or account
+                                    for framework overhead.</p>
+                            </div>
+                            <div class="v7-card">
+                                <h4>Estimate too slow?</h4>
+                                <p>Raise Effective TFLOPS, reduce Activation Transfer, verify P2P mode, or check
+                                    quantization bytes.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="guide-section" id="g-limits">
+                        <span class="v7-kicker">Boundaries</span>
+                        <h3>12. Limits and expectations</h3>
+                        <p>This is a compact theoretical estimator. It does not fully simulate kernel launch overhead,
+                            CUDA graph behavior, NUMA, page faults, exact KV-cache kernels, tensor-parallel collectives,
+                            speculative decoding, continuous batching, prompt prefill, driver behavior, or
+                            engine-specific optimizations.</p>
+                        <details open>
+                            <summary>Good use cases</summary>
+                            <p>Hardware iteration, rough bottleneck discovery, checking if a model fits, comparing PCIe
+                                lane configurations, estimating whether an extra GPU helps, and explaining why a setup
+                                is bandwidth-bound or compute-bound.</p>
+                        </details>
+                        <details>
+                            <summary>Bad use cases</summary>
+                            <p>Claiming exact production throughput, modeling high-batch server inference without
+                                calibration, predicting prompt prefill speed, or treating tensor split over PCIe as
+                                identical to layer split.</p>
+                        </details>
+                        <div class="v7-callout warn">Use the result as an engineering estimate. The ranking of
+                            configurations is usually more trustworthy than the absolute number.</div>
+                    </section>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        "use strict";
+
+        const $ = id => document.getElementById(id);
+
+        const colors = ["blue", "green", "purple", "orange"];
+        const genGB = {
+            "3.0": 0.985,
+            "4.0": 1.969,
+            "5.0": 3.938,
+            "6.0": 7.563
+        };
+        const lanes = [1, 2, 4, 8, 16];
+
+        const cfg = [
+            { section: "Model Architecture" },
+            { custom: "mode" },
+            { id: "totalB", label: "Total Parameters (B)", min: 1, max: 500, step: 1, val: 122 },
+            { id: "activeB", label: "Active Parameters / Token (B)", min: 1, max: 200, step: 1, val: 10, moe: true },
+            { id: "bytesParam", label: "Bytes per Parameter", min: .25, max: 2.5, step: .05, val: .375 },
+            { id: "kvGB", label: "KV Cache Read + Storage (GB)", min: 0, max: 80, step: .5, val: 14 },
+            { id: "layers", label: "Number of Layers", min: 8, max: 160, step: 1, val: 48 },
+            { id: "flopParam", label: "FLOPs per Active Parameter", min: 1, max: 8, step: .1, val: 2 },
+            { section: "GPU Hardware" },
+            { custom: "gpus" },
+            { section: "CPU, RAM and Transfers" },
+            { id: "cpuTf", label: "CPU Effective TFLOPS", min: .1, max: 20, step: .1, val: 4 },
+            { id: "ramBw", label: "RAM Bandwidth (GB/s)", min: 5, max: 300, step: 1, val: 60 },
+            { id: "actMB", label: "Activation Transfer (MB/token)", min: 0, max: 512, step: 1, val: 16 },
+            { id: "buffer", label: "GPU 1 OS Buffer (GB)", min: 0, max: 16, step: .1, val: .5 },
+            { custom: "p2p" },
+            { custom: "hint" }
+        ];
+
+        const helpText = {
+            totalB: "Total parameter count of the model. For dense models this is also close to active parameters per token. Find it in the model card, paper, README or Hugging Face page.",
+            activeB: "Parameters actually used for one generated token. For dense models this equals total parameters. For MoE models search for active params, experts per token or routed experts.",
+            bytesParam: "Average bytes used to store one parameter after quantization. FP16/BF16 is about 2, FP8 is about 1, Q8 about 1, Q4 about 0.5, Q3 about 0.375 before metadata overhead.",
+            kvGB: "Compact estimate for KV cache storage and per-token KV read pressure. It usually grows with context length, batch size and parallel sessions.",
+            layers: "Number of transformer blocks. Find num_hidden_layers in config.json or the architecture table in the model documentation.",
+            flopParam: "Approximate FLOPs per active parameter for one generated token. Use 2 for a simple multiply-add estimate. Increase it if your model or runtime does extra work not captured by active parameters.",
+            cpuTf: "Sustained CPU compute throughput available to inference, not peak marketing TFLOPS. Measure if possible, otherwise use a conservative value.",
+            ramBw: "Sustained system memory bandwidth in GB/s. Find it via STREAM, AIDA64, memory benchmarks, or estimate from DDR generation, channels and speed.",
+            actMB: "Activation tensor size transferred between device blocks per generated token. This is usually much smaller than model weights, but can matter across slow links.",
+            buffer: "VRAM reserved on GPU 1 for display, OS, CUDA context and runtime overhead. It reduces the model capacity of GPU 1."
+        };
+
+        function controlRow(c) {
+            return `
+    <div class="row ${c.moe ? "moe" : ""}">
+      <label for="num-${c.id}">${c.label}</label>
+      <input id="range-${c.id}" type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}">
+      <input id="num-${c.id}" class="num" type="number" min="${c.min}" max="${c.max}" step="${c.step}" value="${c.val}">
+    </div>
+  `;
+        }
+
+        function gpuNumberRow(id, label, min, max, step, val) {
+            return `
+    <div class="row">
+      <label for="num-${id}">${label}</label>
+      <div class="pair">
+        <input id="range-${id}" type="range" min="${min}" max="${max}" step="${step}" value="${val}">
+        <input id="num-${id}" class="num" type="number" min="${min}" max="${max}" step="${step}" value="${val}">
+      </div>
+    </div>
+  `;
+        }
+
+        function gpuCards() {
+            return `
+    <div class="gpu-controls">
+      ${[1, 2, 3, 4].map(i => {
+                const vram = [0, 24, 24, 16, 0][i];
+                const bw = [0, 936, 936, 360, 360][i];
+                const tf = [0, 82.6, 82.6, 25, 25][i];
+                const gen = [0, "5.0", "5.0", "5.0", "4.0"][i];
+                const lane = [0, 8, 8, 4, 16][i];
+                const color = colors[i - 1];
+
+                return `
+          <div class="gpu-card ${color}">
+            <h3>GPU ${i}</h3>
+            ${gpuNumberRow(`vram${i}`, "VRAM (GB)", 0, 96, 1, vram)}
+            ${gpuNumberRow(`bw${i}`, "Memory Bandwidth (GB/s)", 50, 4000, 10, bw)}
+            ${gpuNumberRow(`tf${i}`, "Effective Compute (TFLOPS)", 1, 300, .5, tf)}
+            <div class="row">
+              <label>PCIe / Host Link</label>
+              <div class="pcie-grid">
+                <select id="gen${i}">
+                  ${Object.keys(genGB).map(g => `<option ${g === gen ? "selected" : ""}>${g}</option>`).join("")}
+                </select>
+                <select id="lane${i}">
+                  ${lanes.map(l => `<option value="${l}" ${l === lane ? "selected" : ""}>x${l}</option>`).join("")}
+                </select>
+              </div>
+              <div class="pcie-note" id="pcieNote${i}"></div>
+            </div>
+          </div>
+        `;
+            }).join("")}
+    </div>
+  `;
+        }
+
+        function renderControls() {
+            $("controls").innerHTML = cfg.map(c => {
+                if (c.section) {
+                    return `<div class="section">${c.section}</div>`;
+                }
+
+                if (c.custom === "mode") {
+                    return `
+        <div class="row wide">
+          <label>Model Type</label>
+          <div class="toggle">
+            <input type="radio" id="dense" name="mode">
+            <label for="dense">Dense</label>
+            <input type="radio" id="moe" name="mode" checked>
+            <label for="moe">MoE</label>
+          </div>
+        </div>
+      `;
+                }
+
+                if (c.custom === "gpus") {
+                    return gpuCards();
+                }
+
+                if (c.custom === "p2p") {
+                    return `
+        <div class="row wide">
+          <label>GPU-GPU Transfer</label>
+          <div class="toggle">
+            <input type="radio" id="p2p" name="gpuTransfer" checked>
+            <label for="p2p">Direct P2P</label>
+            <input type="radio" id="host" name="gpuTransfer">
+            <label for="host">Via Host RAM</label>
+          </div>
+        </div>
+      `;
+                }
+
+                if (c.custom === "hint") {
+                    return `
+        <div class="hint">
+          Assumptions: decimal GB, autoregressive single-token decode, contiguous layer blocks, user-entered effective TFLOPS. CPU/RAM executes CPU layers. PCIe is used for activation transfers across device boundaries, not for layers that remain on one device.
+        </div>
+      `;
+                }
+
+                return controlRow(c);
+            }).join("");
+
+            document.querySelectorAll("[id^='range-']").forEach(range => {
+                const id = range.id.replace("range-", "");
+                const num = $("num-" + id);
+
+                range.addEventListener("input", () => {
+                    num.value = range.value;
+                    calc();
+                });
+
+                num.addEventListener("input", () => {
+                    range.value = num.value;
+                    calc();
+                });
+            });
+
+            document.querySelectorAll("select,input[type='radio']").forEach(el => {
+                el.addEventListener("change", () => {
+                    toggleMoE();
+                    calc();
+                });
+            });
+        }
+
+        function val(id, fallback = 0) {
+            const el = $("num-" + id);
+            const parsed = parseFloat(el ? el.value : "");
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+
+        function clamp(x, a, b) {
+            return Math.max(a, Math.min(b, x));
+        }
+
+        function pcieBW(i) {
+            const gen = $("gen" + i).value;
+            const lane = parseInt($("lane" + i).value, 10);
+            return genGB[gen] * lane;
+        }
+
+        function fmtMs(seconds) {
+            return (seconds * 1000).toFixed(seconds < .01 ? 2 : 1) + " ms";
+        }
+
+        function niceMax(x) {
+            if (!Number.isFinite(x) || x <= 0) {
+                return 1;
+            }
+
+            const p = 10 ** Math.floor(Math.log10(x));
+            const n = x / p;
+            const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+            return m * p;
+        }
+
+        function toggleMoE() {
+            document.querySelectorAll(".moe").forEach(el => {
+                el.style.display = $("moe").checked ? "grid" : "none";
+            });
+        }
+
+        function makeDevice(name, kind, cap, bw, tf, color, pcie, readGB, flops) {
+            const safeBw = Math.max(.001, bw);
+            const safeTf = Math.max(.001, tf);
+            const mem = readGB / safeBw;
+            const cmp = flops / (safeTf * 1e12);
+
+            return {
+                name,
+                kind,
+                cap,
+                bw: safeBw,
+                tf: safeTf,
+                color,
+                pcie,
+                assigned: 0,
+                mem,
+                cmp,
+                perLayer: Math.max(mem, cmp),
+                time: 0
+            };
+        }
+
+        function transferTime(a, b, act, ram) {
+            if (!a || !b || a.name === b.name) {
+                return 0;
+            }
+
+            if (a.kind === "cpu" && b.kind === "cpu") {
+                return 0;
+            }
+
+            if (a.kind === "gpu" && b.kind === "gpu") {
+                if ($("p2p").checked) {
+                    return act / Math.min(a.pcie, b.pcie);
+                }
+
+                return act / a.pcie + 2 * act / Math.max(.001, ram) + act / b.pcie;
+            }
+
+            const gpu = a.kind === "gpu" ? a : b;
+            return act / gpu.pcie + act / Math.max(.001, ram);
+        }
+
+        function subsets(items) {
+            const out = [];
+
+            for (let mask = 1; mask < (1 << items.length); mask++) {
+                const subset = [];
+
+                for (let i = 0; i < items.length; i++) {
+                    if ((mask >> i) & 1) {
+                        subset.push(items[i]);
+                    }
+                }
+
+                out.push(subset);
+            }
+
+            return out;
+        }
+
+        function permutations(items) {
+            if (items.length < 2) {
+                return [items];
+            }
+
+            const out = [];
+
+            items.forEach((item, i) => {
+                const rest = items.slice(0, i).concat(items.slice(i + 1));
+                permutations(rest).forEach(perm => out.push([item].concat(perm)));
+            });
+
+            return out;
+        }
+
+        function assignLayers(subset, layers) {
+            if (subset.length > layers) {
+                return null;
+            }
+
+            if (subset.some(d => d.cap < 1)) {
+                return null;
+            }
+
+            if (subset.reduce((sum, d) => sum + d.cap, 0) < layers) {
+                return null;
+            }
+
+            const assigned = new Map(subset.map(d => [d.name, 1]));
+            let remaining = layers - subset.length;
+
+            [...subset].sort((a, b) => a.perLayer - b.perLayer).forEach(d => {
+                const extra = Math.min(remaining, d.cap - 1);
+                assigned.set(d.name, assigned.get(d.name) + extra);
+                remaining -= extra;
+            });
+
+            return remaining === 0 ? assigned : null;
+        }
+
+        function bestSplit(devices, layers, act, ram) {
+            let best = null;
+
+            for (const subset of subsets(devices)) {
+                const assigned = assignLayers(subset, layers);
+
+                if (!assigned) {
+                    continue;
+                }
+
+                const base = subset.map(d => {
+                    const count = assigned.get(d.name);
+                    return {
+                        ...d,
+                        assigned: count,
+                        time: count * d.perLayer
+                    };
+                });
+
+                for (const ordered of permutations(base)) {
+                    const links = [];
+                    let total = ordered.reduce((sum, d) => sum + d.time, 0);
+
+                    for (let i = 0; i < ordered.length - 1; i++) {
+                        const link = transferTime(ordered[i], ordered[i + 1], act, ram);
+                        links.push(link);
+                        total += link;
+                    }
+
+                    if (!best || total < best.total) {
+                        best = {
+                            used: ordered,
+                            links,
+                            total
+                        };
+                    }
+                }
+            }
+
+            return best || {
+                used: [],
+                links: [],
+                total: 0
+            };
+        }
+
+        function deviceBox(d, layers) {
+            const pct = d.assigned > 0 ? Math.max(7, (d.assigned / layers) * 100) : 0;
+            const bound = d.mem >= d.cmp ? "BW bound" : "FLOPS bound";
+            const meta = d.kind === "cpu"
+                ? `${d.bw.toFixed(0)} GB/s RAM • ${d.tf.toFixed(1)} TF`
+                : `${d.cap} layer cap • ${d.bw.toFixed(0)} GB/s • ${d.tf.toFixed(1)} TF • PCIe ${d.pcie.toFixed(1)} GB/s`;
+
+            return `
+    <div class="gpu-box ${d.color}">
+      <div class="gpu-title">${d.name}</div>
+      <div class="gpu-meta">${meta}</div>
+      <div class="layer-fill ${d.color}Fill" style="height:${pct}%">
+        <b>${d.assigned} layers</b>
+        <span>Block ${fmtMs(d.time)}</span>
+        <small>${bound}</small>
+      </div>
+    </div>
+  `;
+        }
+
+        function flow(result, layers) {
+            if (!result.used.length) {
+                return `<div style="color:var(--mut)">No valid device configured.</div>`;
+            }
+
+            return result.used.map((d, i) => {
+                const link = i < result.links.length
+                    ? `<div class="link">transfer<br>${fmtMs(result.links[i])}</div>`
+                    : "";
+
+                return deviceBox(d, layers) + link;
+            }).join("");
+        }
+
+        function setBar(el, pct, label) {
+            el.style.width = pct + "%";
+            el.textContent = label;
+            el.dataset.label = label;
+            el.classList.toggle("small", pct < 18);
+        }
+
+        function calc() {
+            for (let i = 1; i <= 4; i++) {
+                $("pcieNote" + i).textContent = pcieBW(i).toFixed(2) + " GB/s per direction";
+            }
+
+            const layers = Math.max(1, Math.round(val("layers", 80)));
+            const totalB = Math.max(.001, val("totalB", 70));
+            const activeB = $("moe").checked ? clamp(val("activeB", 70), .001, totalB) : totalB;
+            const bytes = Math.max(.001, val("bytesParam", .5));
+            const kvGB = Math.max(0, val("kvGB", 4));
+            const flopParam = Math.max(.001, val("flopParam", 2));
+            const ram = Math.max(.001, val("ramBw", 60));
+            const act = Math.max(0, val("actMB", 16)) / 1024;
+            const buffer = Math.max(0, val("buffer", 1));
+
+            const weightGB = totalB * bytes;
+            const activeWeightGB = activeB * bytes;
+            const storedGB = weightGB + kvGB;
+            const activeReadGB = activeWeightGB + kvGB;
+            const computeTflopPerToken = activeB * flopParam / 1000;
+
+            const storeLayer = storedGB / layers;
+            const readLayer = activeReadGB / layers;
+            const flopLayer = activeB * 1e9 * flopParam / layers;
+            const gpus = [];
+
+            for (let i = 1; i <= 4; i++) {
+                const raw = Math.max(0, val("vram" + i, 0));
+                const available = i === 1 ? Math.max(0, raw - buffer) : raw;
+
+                if (raw > 0) {
+                    gpus.push(makeDevice(
+                        "GPU " + i,
+                        "gpu",
+                        Math.floor(available / storeLayer),
+                        val("bw" + i, 360),
+                        val("tf" + i, 25),
+                        colors[i - 1],
+                        pcieBW(i),
+                        readLayer,
+                        flopLayer
+                    ));
+                }
+            }
+
+            const cpu = makeDevice(
+                "CPU / RAM",
+                "cpu",
+                layers,
+                ram,
+                val("cpuTf", 2),
+                "red",
+                Infinity,
+                readLayer,
+                flopLayer
+            );
+
+            const opt = bestSplit([...gpus, cpu], layers, act, ram);
+            const single = bestSplit([...gpus.filter(g => g.name === "GPU 1"), cpu], layers, act, ram);
+
+            const tps = opt.total > 0 ? 1 / opt.total : 0;
+            const tpsSingle = single.total > 0 ? 1 / single.total : 0;
+            const cpuUsed = opt.used.some(d => d.kind === "cpu");
+            const gpuCap = gpus.reduce((sum, g) => sum + Math.max(0, g.cap), 0);
+            const linkSum = opt.links.reduce((sum, x) => sum + x, 0);
+
+            $("topTps").textContent = tps.toFixed(2) + " t/s";
+            $("topLat").textContent = fmtMs(opt.total);
+            $("topSplit").textContent = opt.used.map(d => `${d.name.replace(" / RAM", "")}: ${d.assigned}`).join(" / ");
+
+            $("topVram").textContent = !cpuUsed ? "FULLY IN VRAM" : gpuCap >= layers ? "CPU SELECTED" : "VRAM EXCEEDED";
+            $("topVram").className = "mval " + (!cpuUsed ? "green" : gpuCap >= layers ? "blueText" : "red");
+
+            $("subStatus").textContent =
+                `Stored ${storedGB.toFixed(1)} GB, ` +
+                `active weight + KV read/token ${activeReadGB.toFixed(1)} GB, ` +
+                `compute/token ${computeTflopPerToken.toFixed(3)} TFLOP, ` +
+                `transfer overhead ${fmtMs(linkSum)}.`;
+
+            $("visuals").innerHTML = flow(opt, layers);
+
+            const max = niceMax(Math.max(tps, tpsSingle, 1));
+            const optPct = Math.max(2, Math.min(100, 100 * tps / max));
+            const singlePct = Math.max(2, Math.min(100, 100 * tpsSingle / max));
+
+            $("barOpt").className = "bar " + (cpuUsed && gpuCap < layers ? "red" : "blue");
+            setBar($("barOpt"), optPct, tps.toFixed(2) + " t/s");
+
+            $("barSingle").className = "bar gray";
+            setBar($("barSingle"), singlePct, tpsSingle.toFixed(2) + " t/s");
+
+            $("axis").innerHTML = Array.from({ length: 6 }, (_, i) => {
+                const value = (max * i / 5).toFixed(max < 10 ? 1 : 0);
+                return `<span>${value}${i === 5 ? " t/s" : ""}</span>`;
+            }).join("");
+        }
+
+        function attachHelp(id, text) {
+            const label = document.querySelector(`label[for="num-${id}"]`);
+
+            if (!label || label.dataset.help) {
+                return;
+            }
+
+            label.dataset.help = "1";
+            label.insertAdjacentHTML("beforeend", `<span class="fieldHelp" tabindex="0">?</span><span class="fieldTip">${text}</span>`);
+
+            ["range-" + id, "num-" + id].forEach(x => {
+                const el = $(x);
+
+                if (el) {
+                    el.title = text;
+                }
+            });
+        }
+
+        function enhanceHelp() {
+            Object.entries(helpText).forEach(([id, text]) => attachHelp(id, text));
+
+            for (let i = 1; i <= 4; i++) {
+                attachHelp("vram" + i, "GPU memory capacity. Find it in the GPU spec sheet or tools such as GPU-Z, nvidia-smi, ROCm SMI or your operating system.");
+                attachHelp("bw" + i, "GPU memory bandwidth in GB/s. Find it in the GPU vendor specification. This is the main limit for bandwidth-bound decode.");
+                attachHelp("tf" + i, "Sustained effective TFLOPS for this inference workload. The spec sheet gives peak TFLOPS, but real effective TFLOPS is usually lower. Calibrate with benchmarks if possible.");
+
+                const card = $("gen" + i)?.closest(".row");
+
+                if (card) {
+                    const label = card.querySelector("label");
+
+                    if (label && !label.dataset.help) {
+                        const text = "PCIe generation and lane width of this GPU slot. Check motherboard manual, BIOS, GPU-Z, lspci or nvidia-smi topo. The calculator converts this to one-direction GB/s.";
+                        label.dataset.help = "1";
+                        label.insertAdjacentHTML("beforeend", `<span class="fieldHelp" tabindex="0">?</span><span class="fieldTip">${text}</span>`);
+                        $("gen" + i).title = text;
+                        $("lane" + i).title = text;
+                    }
+                }
+            }
+
+            document.querySelectorAll(".row.wide > label").forEach(label => {
+                if (label.dataset.help) {
+                    return;
+                }
+
+                if (label.textContent.includes("Model Type")) {
+                    label.dataset.help = "1";
+                    label.insertAdjacentHTML("beforeend", `<span class="fieldHelp" tabindex="0">?</span><span class="fieldTip">Dense means all parameters are active per token. MoE means total parameters define storage, while active parameters define most compute and active weight reads.</span>`);
+                }
+
+                if (label.textContent.includes("GPU-GPU Transfer")) {
+                    label.dataset.help = "1";
+                    label.insertAdjacentHTML("beforeend", `<span class="fieldHelp" tabindex="0">?</span><span class="fieldTip">Direct P2P assumes GPUs can transfer activations directly. Via Host RAM models GPU to RAM to GPU transfers and is usually slower.</span>`);
+                }
+            });
+        }
+
+        function initGuide() {
+            const modal = $("guideModal");
+            const open = $("openGuide");
+            const close = $("closeGuide");
+            let lastFocus = null;
+
+            if (!modal || !open || !close) {
+                return;
+            }
+
+            function openModal() {
+                lastFocus = document.activeElement;
+                modal.classList.add("open");
+                modal.setAttribute("aria-hidden", "false");
+                close.focus();
+            }
+
+            function closeModal() {
+                modal.classList.remove("open");
+                modal.setAttribute("aria-hidden", "true");
+
+                if (lastFocus && typeof lastFocus.focus === "function") {
+                    lastFocus.focus();
+                }
+            }
+
+            function focusableElements() {
+                return [...modal.querySelectorAll("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])")]
+                    .filter(el => !el.disabled && el.offsetParent !== null);
+            }
+
+            open.addEventListener("click", openModal);
+            close.addEventListener("click", closeModal);
+
+            modal.addEventListener("click", event => {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+
+            document.addEventListener("keydown", event => {
+                if (!modal.classList.contains("open")) {
+                    return;
+                }
+
+                if (event.key === "Escape") {
+                    closeModal();
+                    return;
+                }
+
+                if (event.key !== "Tab") {
+                    return;
+                }
+
+                const focusable = focusableElements();
+
+                if (!focusable.length) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            });
+        }
+
+        renderControls();
+        enhanceHelp();
+        initGuide();
+        toggleMoE();
+        calc();
+    </script>
+</body>
+
+</html>
