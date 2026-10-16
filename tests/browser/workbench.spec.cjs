@@ -6,9 +6,11 @@ test("model and machine presets work independently with accurate cache and memor
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
+  await page.locator("#presets > summary").click();
   await page
     .getByLabel("Model architecture", { exact: true })
     .selectOption("llama31-8b");
+  await page.getByLabel("Weight storage", { exact: true }).selectOption("q4");
   await page
     .getByRole("button", { name: "Apply model preset", exact: true })
     .click();
@@ -102,7 +104,7 @@ test("Cloudflare serves the canonical site, headers, a real 404, redirects and o
     "https://llm-calculator.piotrzmudadev.com/",
   );
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Will it fit?",
+    "LLM hardware calculator",
   );
   const redirect = await request.get("/LLM-calculator/", { maxRedirects: 0 });
   expect(redirect.status()).toBe(301);

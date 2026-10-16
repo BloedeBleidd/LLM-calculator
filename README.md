@@ -27,6 +27,10 @@ An estimate is not a measured benchmark. The model assumes uniform contiguous la
 
 Open `index.html` directly, or serve the repository as a static site. Keep `src/` alongside the HTML; there is no build step, runtime dependency, API key or external script.
 
+Start with **Your configuration**: all model, GPU, CPU, RAM and transfer inputs are editable immediately. Each GPU has independent settings; set its VRAM to zero to disable it. **Optional presets** is closed by default. Choosing Custom keeps your entered values; manual edits return the relevant selector to Custom. A model architecture can be loaded while keeping an arbitrary custom bytes-per-parameter value. The **Save / export** navigation opens the file/share tools, and **Save your setup** leads to named configurations.
+
+The live token path shows the actual estimated device order, exact layer ranges, weight and cache storage, remaining memory and activation transfers. The colored strip spans every layer in order. Click a phase or use Previous/Next to inspect its memory reads, bottleneck and cumulative elapsed time. This is a trace of the existing sequential estimate, not execution of a real model. On wide screens the editor and result sit side by side; a result panel that fits the viewport stays alongside edits. On phones, Model, Hardware and Token flow navigation provides direct access to each section.
+
 All capacity and bandwidth inputs use **decimal GB**, with **1000 MB = 1 GB**. Set each GPU's VRAM to zero to disable that slot. Enter RAM available to CPU model layers after other host allocations. Include weight-format overhead in bytes per parameter and runtime allocations in the memory reservations.
 
 “Save current” adds a named snapshot to the comparison table. “Load” restores its full configuration. “Reset defaults” resets current inputs and keeps comparisons. “Export JSON” saves the current inputs; “Import JSON” validates the complete versioned file before changing any setting. Imported configuration files are limited to 64 KiB.

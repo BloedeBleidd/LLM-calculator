@@ -51,6 +51,8 @@ The two Llama 3.1 presets use layer/head dimensions from [Meta's architecture re
 
 The memory budget distributes weight and cache storage proportionally to assigned layers. Free memory is usable device capacity minus that placement; GPU reservations have already been subtracted. Devices receiving no layers remain unused. An infeasible configuration has no placement, so its allocated bytes are zero. Reports contain the current validated inputs and results, rather than any un-applied planner preview. Configuration schema v1, existing JSON files and shared links remain compatible.
 
+The execution trace walks the selected blocks in optimizer order. Layer ranges are contiguous, one-based and cover exactly `1…L`. Each block is followed by its estimated activation transfer to the next block. Weights and KV storage remain on their assigned device; the arrows do not represent moving the entire model. Cumulative time is the serial sum of processing and boundary times, ending at the same latency as the main estimate. The step controls inspect these stages; they do not run or benchmark a model. Empty/infeasible configurations have no invented partial token path.
+
 ## Timing and optimization
 
 ```text

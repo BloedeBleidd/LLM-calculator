@@ -34,286 +34,285 @@
       <nav class="site-nav" aria-label="Main navigation">
         <a class="brand" href="#main"
           ><img src="assets/favicon.svg" alt="" width="32" height="32" />LLM
-          Calculator<span class="release">v3</span></a
+          Calculator</a
         >
         <div class="nav-links">
-          <a href="#calculator">Calculator</a
+          <a href="#model-settings">Model</a
+          ><a href="#hardware-settings">Hardware</a
+          ><a href="#results">Token flow</a
           ><a href="#kv-planner">Context planner</a
+          ><a href="#workspace">Save / export</a
           ><a href="#comparison">Compare</a
-          ><a href="https://github.com/BloedeBleidd/LLM-calculator"
-            >GitHub <span aria-hidden="true">↗</span></a
-          >
+          ><a href="https://github.com/BloedeBleidd/LLM-calculator">GitHub ↗</a>
         </div>
       </nav>
-      <section class="intro" aria-labelledby="introTitle">
+      <header class="workbench-heading">
         <div>
-          <p class="eyebrow">
-            <span class="status-dot"></span>Local inference / Hardware planning
-          </p>
-          <h1 id="introTitle">
-            Will it fit?<br /><span>What will slow it down?</span>
-          </h1>
-          <p class="intro-copy">
-            Explore the trade-off between model size, context and hardware.
-            Follow each layer through your GPUs and RAM, then compare the setups
-            that make sense.
-          </p>
-          <a class="text-link" href="#presets"
-            >Start with a preset <span aria-hidden="true">↓</span></a
-          >
+          <h1 id="introTitle">LLM hardware calculator</h1>
+          <p>Enter your model and hardware. Every input is editable.</p>
         </div>
-        <div
-          class="intro-diagram"
-          aria-label="A token passes sequentially through GPU and CPU layer blocks"
+        <button class="help-btn" id="openGuide" type="button">Guide</button>
+      </header>
+      <div class="editor-layout">
+        <section
+          id="calculator"
+          class="configuration-panel"
+          aria-labelledby="calculatorTitle"
         >
-          <div class="diagram-label">
-            <span>ONE TOKEN / LAYER SPLIT</span><span>01 → L</span>
-          </div>
-          <div class="diagram-chain">
-            <span>GPU 1<small>weights + KV</small></span
-            ><b aria-hidden="true">→</b
-            ><span>GPU 2<small>weights + KV</small></span
-            ><b aria-hidden="true">→</b
-            ><span>CPU<small>optional offload</small></span>
-          </div>
-          <div class="diagram-foot">
-            <span>Memory bandwidth</span><span>Compute</span
-            ><span>Transfer time</span>
-          </div>
-          <p>
-            Single-session decode estimates. Every input is editable; no model
-            is downloaded.
-          </p>
-        </div>
-      </section>
-
-      <section
-        class="preset-section"
-        id="presets"
-        aria-labelledby="presetsTitle"
-      >
-        <div class="section-heading">
-          <span class="section-index">01</span>
-          <div>
-            <h2 id="presetsTitle">Choose a starting point</h2>
-            <p>
-              Apply a model and a machine independently, then fine-tune the
-              inputs below.
-            </p>
-          </div>
-        </div>
-        <div class="preset-grid">
-          <div class="preset-panel">
-            <label for="modelPreset">Model architecture</label
-            ><select id="modelPreset"></select>
-            <label for="quantPreset">Weight storage</label
-            ><select id="quantPreset"></select>
-            <button class="primary-button" id="applyModel" type="button">
-              Apply model preset
-            </button>
-            <p id="modelPresetNote" class="helper-copy"></p>
-            <a
-              id="modelPresetSource"
-              class="text-link"
-              href="https://github.com/meta-llama/llama-models/blob/main/models/sku_list.py"
-              >Architecture source ↗</a
+          <div class="configuration-heading">
+            <div>
+              <h2 id="calculatorTitle">Your configuration</h2>
+              <p>All values are editable. Presets are optional.</p>
+            </div>
+            <span class="custom-badge" id="configurationMode"
+              >Custom setup</span
             >
-            <p class="helper-copy">
-              Quantized weight profiles include an illustrative metadata
-              allowance. Replace bytes per parameter with your actual file size
-              / parameter count.
-            </p>
           </div>
-          <div class="preset-panel">
-            <label for="hardwarePreset">Hardware profile</label
-            ><select id="hardwarePreset"></select>
-            <div id="hardwarePresetNote" class="hardware-facts"></div>
-            <button id="applyHardware" type="button">
-              Apply hardware profile
-            </button>
-            <p class="helper-copy">
-              Generic examples, not GPU specifications or measured benchmarks.
-              Profiles use host-staged transfers; enter your sustained
-              bandwidth, effective compute and actual PCIe topology.
-            </p>
+          <details class="preset-section" id="presets">
+            <summary>
+              Optional presets
+              <span>Load an example, or keep editing your own values</span>
+            </summary>
+            <div class="preset-content">
+              <div class="section-heading">
+                <div>
+                  <h3 id="presetsTitle">Load example values</h3>
+                  <p>
+                    Apply a model and a machine independently, then fine-tune
+                    the inputs below.
+                  </p>
+                </div>
+              </div>
+              <div class="preset-grid">
+                <div class="preset-panel">
+                  <label for="modelPreset">Model architecture</label
+                  ><select id="modelPreset"></select>
+                  <label for="quantPreset">Weight storage</label
+                  ><select id="quantPreset"></select>
+                  <button class="primary-button" id="applyModel" type="button">
+                    Apply model preset
+                  </button>
+                  <p id="modelPresetNote" class="helper-copy"></p>
+                  <a
+                    id="modelPresetSource"
+                    class="text-link"
+                    href="https://github.com/meta-llama/llama-models/blob/main/models/sku_list.py"
+                    >Architecture source ↗</a
+                  >
+                  <p class="helper-copy">
+                    Quantized weight profiles include an illustrative metadata
+                    allowance. Replace bytes per parameter with your actual file
+                    size / parameter count.
+                  </p>
+                </div>
+                <div class="preset-panel">
+                  <label for="hardwarePreset">Hardware profile</label
+                  ><select id="hardwarePreset"></select>
+                  <div id="hardwarePresetNote" class="hardware-facts"></div>
+                  <button id="applyHardware" type="button">
+                    Apply hardware profile
+                  </button>
+                  <p class="helper-copy">
+                    Generic examples, not GPU specifications or measured
+                    benchmarks. Profiles use host-staged transfers; enter your
+                    sustained bandwidth, effective compute and actual PCIe
+                    topology.
+                  </p>
+                </div>
+              </div>
+              <p class="inline-status" id="presetStatus" role="status"></p>
+            </div>
+          </details>
+          <div class="controls" id="controls" tabindex="-1"></div>
+          <a class="save-setup-link text-link" href="#comparison"
+            >Save your own configuration ↓</a
+          >
+        </section>
+        <section
+          class="results-panel"
+          id="results"
+          aria-labelledby="resultsTitle"
+        >
+          <div class="header">
+            <div class="title">
+              <h2 id="resultsTitle">Live estimate</h2>
+              <p id="subStatus">
+                Update any input to recalculate the complete layer chain.
+              </p>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <span class="mlabel">Decode</span
+                ><span class="mval" id="topTps">—</span>
+              </div>
+              <div class="metric">
+                <span class="mlabel">Latency / token</span
+                ><span class="mval" id="topLat">—</span>
+              </div>
+              <div class="metric">
+                <span class="mlabel">Layer split · execution order</span
+                ><span class="mval" id="topSplit">—</span>
+              </div>
+              <div class="metric">
+                <span class="mlabel">Placement</span
+                ><span class="mval" id="topVram">NOT CALCULATED</span>
+              </div>
+            </div>
+          </div>
+          <p
+            class="calculation-notice"
+            id="calculationNotice"
+            role="alert"
+            hidden
+          ></p>
+          <noscript
+            ><p class="calculation-notice">
+              Enable JavaScript to calculate estimates. The source and
+              methodology remain available below.
+            </p></noscript
+          >
+          <section class="flow-panel" aria-labelledby="flowTitle">
+            <div class="flow-heading">
+              <h3 id="flowTitle">Layer placement &amp; token path</h3>
+              <p id="flowSummary">Waiting for valid inputs.</p>
+            </div>
+            <div
+              id="layerMap"
+              class="layer-map"
+              role="img"
+              aria-label="Layer placement"
+            ></div>
+            <div class="flow-stepper">
+              <button
+                id="previousStep"
+                type="button"
+                aria-label="Previous token step"
+              >
+                ←
+              </button>
+              <p id="stepPosition" role="status">—</p>
+              <button id="nextStep" type="button" aria-label="Next token step">
+                Next →
+              </button>
+            </div>
+            <ol
+              class="token-path"
+              id="visuals"
+              aria-label="Selected layer allocation"
+            ></ol>
+            <p id="stepDetail" class="step-detail"></p>
+          </section>
+        </section>
+      </div>
+      <div class="chart">
+        <div class="chart-row">
+          <div class="chart-label">Best estimated split</div>
+          <div class="bar-area">
+            <div class="bar blue" id="barOpt">0.00 t/s</div>
           </div>
         </div>
-        <p class="inline-status" id="presetStatus" role="status"></p>
-      </section>
-
+        <div class="chart-row">
+          <div class="chart-label">Best single GPU + CPU</div>
+          <div class="bar-area">
+            <div class="bar gray" id="barSingle">0.00 t/s</div>
+          </div>
+        </div>
+        <div class="axis" id="axis"></div>
+        <p class="comparison-gain" id="comparisonGain"></p>
+      </div>
       <section
-        id="calculator"
-        class="calculator-section"
-        aria-labelledby="calculatorTitle"
+        class="workspace"
+        id="workspace"
+        aria-label="Configuration tools"
       >
         <div class="section-heading">
-          <span class="section-index">02</span>
           <div>
-            <h2 id="calculatorTitle">Your inference setup</h2>
+            <h2>Save, share &amp; files</h2>
             <p>
-              Live estimates for the current inputs. Memory and bandwidth use
-              decimal GB.
+              Keep your own settings as a named configuration, JSON file or
+              shareable link.
             </p>
           </div>
         </div>
-        <div class="header">
-          <div class="title">
-            <h3>Decode estimate</h3>
-            <p id="subStatus">
-              Roofline decode estimator for contiguous layer/block split.
-              Tensor-parallel results require calibration.
-            </p>
-          </div>
-
-          <div class="metrics">
-            <div class="metric">
-              <span class="mlabel">Single-session throughput</span>
-              <span class="mval" id="topTps">—</span>
-            </div>
-            <div class="metric">
-              <span class="mlabel">Latency</span>
-              <span class="mval" id="topLat">—</span>
-            </div>
-            <div class="metric">
-              <span class="mlabel">Layer Split</span>
-              <span class="mval" id="topSplit">—</span>
-            </div>
-            <div class="metric">
-              <span class="mlabel">Placement Status</span>
-              <span class="mval" id="topVram">NOT CALCULATED</span>
-            </div>
-            <button class="help-btn" id="openGuide" type="button">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                <line x1="12" y1="17" x2="12.01" y2="17"></line>
-              </svg>
-              Guide
-            </button>
-          </div>
-        </div>
-
-        <section class="workspace" aria-label="Configuration tools">
-          <div class="workspace-actions">
-            <button id="shareConfig" type="button">Share configuration</button>
-            <button id="exportConfig" type="button">Export JSON</button>
-            <button id="exportReport" type="button">Download report</button>
-            <button id="importConfig" type="button">Import JSON</button>
-            <button id="resetConfig" type="button">Reset defaults</button>
-            <input
-              id="configFile"
-              type="file"
-              accept=".json,application/json"
-              hidden
-            />
-          </div>
-          <p id="workspaceStatus" role="status" aria-live="polite"></p>
+        <div class="workspace-actions">
+          <a class="toolbar-link" href="#comparison">Save your setup</a>
+          <button id="shareConfig" type="button">Share configuration</button>
+          <button id="exportConfig" type="button">Export JSON</button>
+          <button id="exportReport" type="button">Download report</button>
+          <button id="importConfig" type="button">Import JSON</button>
+          <button id="resetConfig" type="button">Reset defaults</button>
           <input
-            id="sharedLink"
-            class="shared-link"
-            aria-label="Configuration link"
-            type="url"
-            readonly
+            id="configFile"
+            type="file"
+            accept=".json,application/json"
             hidden
           />
-        </section>
-        <p
-          class="calculation-notice"
-          id="calculationNotice"
-          role="alert"
-          hidden
-        ></p>
-        <noscript
-          ><p class="calculation-notice">
-            Enable JavaScript to calculate estimates. The source and methodology
-            remain available below.
-          </p></noscript
-        >
-        <div
-          class="gpu-visuals"
-          id="visuals"
-          aria-label="Selected layer allocation"
-        ></div>
-
-        <div class="chart">
-          <div class="chart-row">
-            <div class="chart-label">Best estimated split</div>
-            <div class="bar-area">
-              <div class="bar blue" id="barOpt">0.00 t/s</div>
-            </div>
-          </div>
-          <div class="chart-row">
-            <div class="chart-label">Best single GPU + CPU</div>
-            <div class="bar-area">
-              <div class="bar gray" id="barSingle">0.00 t/s</div>
-            </div>
-          </div>
-          <div class="axis" id="axis"></div>
-          <p class="comparison-gain" id="comparisonGain"></p>
         </div>
-
-        <section class="memory-budget" aria-labelledby="memoryTitle">
-          <div class="budget-heading">
-            <h3 id="memoryTitle">Memory budget</h3>
-            <p id="memorySummary">Waiting for valid inputs.</p>
+        <p id="workspaceStatus" role="status" aria-live="polite"></p>
+        <input
+          id="sharedLink"
+          class="shared-link"
+          aria-label="Configuration link"
+          type="url"
+          readonly
+          hidden
+        />
+      </section>
+      <section class="memory-budget" aria-labelledby="memoryTitle">
+        <div class="budget-heading">
+          <h3 id="memoryTitle">Memory budget</h3>
+          <p id="memorySummary">Waiting for valid inputs.</p>
+        </div>
+        <dl class="memory-totals">
+          <div>
+            <dt>Model weights</dt>
+            <dd id="memoryWeights">—</dd>
           </div>
-          <dl class="memory-totals">
-            <div>
-              <dt>Model weights</dt>
-              <dd id="memoryWeights">—</dd>
-            </div>
-            <div>
-              <dt>KV cache</dt>
-              <dd id="memoryCache">—</dd>
-            </div>
-            <div>
-              <dt>Usable GPU memory</dt>
-              <dd id="memoryGpu">—</dd>
-            </div>
-            <div>
-              <dt>GPU reservations</dt>
-              <dd id="memoryReserved">—</dd>
-            </div>
-          </dl>
-          <div
-            class="table-scroll"
-            tabindex="0"
-            role="region"
-            aria-label="Memory budget per device"
-          >
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Device</th>
-                  <th scope="col">Layers</th>
-                  <th scope="col">Weights</th>
-                  <th scope="col">KV cache</th>
-                  <th scope="col">Usable</th>
-                  <th scope="col">Free after placement</th>
-                </tr>
-              </thead>
-              <tbody id="memoryRows"></tbody>
-            </table>
+          <div>
+            <dt>KV cache</dt>
+            <dd id="memoryCache">—</dd>
           </div>
-          <p class="helper-copy">
-            Uniform layer storage. GPU reservations are excluded from usable
-            memory; CPU RAM is the usable amount you entered. Runtime buffers
-            must be reserved separately.
-          </p>
-        </section>
-
-        <div class="controls" id="controls" tabindex="-1"></div>
+          <div>
+            <dt>Usable GPU memory</dt>
+            <dd id="memoryGpu">—</dd>
+          </div>
+          <div>
+            <dt>GPU reservations</dt>
+            <dd id="memoryReserved">—</dd>
+          </div>
+        </dl>
+        <div
+          class="table-scroll"
+          tabindex="0"
+          role="region"
+          aria-label="Memory budget per device"
+        >
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Device</th>
+                <th scope="col">Layers</th>
+                <th scope="col">Weights</th>
+                <th scope="col">KV cache</th>
+                <th scope="col">Usable</th>
+                <th scope="col">Free after placement</th>
+              </tr>
+            </thead>
+            <tbody id="memoryRows"></tbody>
+          </table>
+        </div>
+        <p class="helper-copy">
+          Uniform layer storage. GPU reservations are excluded from usable
+          memory; CPU RAM is the usable amount you entered. Runtime buffers must
+          be reserved separately.
+        </p>
       </section>
 
+      <p class="flow-note">
+        Weights and KV cache stay on the device that owns their layers. The
+        arrows show activation transfers between consecutive blocks. Layer
+        numbers start at 1.
+      </p>
       <section
         class="planner-section"
         id="kv-planner"

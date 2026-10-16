@@ -6,7 +6,11 @@ const engine = window.LLMEngine;
 const { PCIe_GBPS: genGB, LANES: lanes, FIELDS } = engine;
 const colors = ["blue", "green", "purple", "orange"];
 const cfg = [
-  { section: "Model Architecture" },
+  {
+    section: "1. Your model",
+    anchor: "model-settings",
+    note: "Enter any Dense or MoE architecture, weight size and cache requirements.",
+  },
   { custom: "mode" },
   ...[
     "totalB",
@@ -17,9 +21,17 @@ const cfg = [
     "layers",
     "flopParam",
   ].map((id) => ({ id, ...FIELDS[id], moe: id === "activeB" })),
-  { section: "GPU Hardware" },
+  {
+    section: "2. Your GPUs",
+    anchor: "hardware-settings",
+    note: "Configure each card independently. Set VRAM to 0 to disable a slot.",
+  },
   { custom: "gpus" },
-  { section: "CPU, RAM and Transfers" },
+  {
+    section: "3. CPU, RAM & transfers",
+    anchor: "host-settings",
+    note: "Usable RAM limits CPU offload. Choose the transfer path supported by your machine.",
+  },
   ...["ramGB", "cpuTf", "ramBw", "actMB"].map((id) => ({ id, ...FIELDS[id] })),
   { custom: "p2p" },
   { custom: "hint" },
@@ -112,7 +124,7 @@ function renderControls() {
   $("controls").innerHTML = cfg
     .map((c) => {
       if (c.section) {
-        return `<div class="section">${c.section}</div>`;
+        return `<div class="section" id="${c.anchor}"><h3>${c.section}</h3><p>${c.note}</p></div>`;
       }
 
       if (c.custom === "mode") {
@@ -254,42 +266,67 @@ function toggleMoE() {
   });
 }
 
-function deviceBox(d, layers) {
-  const pct = d.assigned > 0 ? Math.max(7, (d.assigned / layers) * 100) : 0;
-  const bound = d.mem >= d.cmp ? "BW bound" : "FLOPS bound";
-  const meta =
-    d.kind === "cpu"
-      ? `${d.availableGB.toFixed(1)} GB usable RAM • ${d.bw.toFixed(0)} GB/s • ${d.tf.toFixed(1)} TF`
-      : `${d.availableGB.toFixed(1)} GB usable • ${d.cap} layer cap • ${d.bw.toFixed(0)} GB/s • ${d.tf.toFixed(1)} TF`;
+let activeStep = 0;
+let executionTrace = [];
 
-  return `
-    <div class="gpu-box ${d.color}">
-      <div class="gpu-title">${d.name}</div>
-      <div class="gpu-meta">${meta}</div>
-      <div class="layer-fill ${d.color}Fill" style="height:${pct}%">
-<b>${d.assigned} layers</b>
-<span>Block ${fmtMs(d.time)}</span>
-<small>${bound}</small>
-      </div>
-    </div>
-  `;
+function selectTokenStep(index) {
+  if (!executionTrace.length) return;
+  activeStep = Math.max(0, Math.min(executionTrace.length - 1, index));
+  const step = executionTrace[activeStep];
+  $("previousStep").disabled = activeStep === 0;
+  $("nextStep").disabled = activeStep === executionTrace.length - 1;
+  $("stepPosition").textContent =
+    `Step ${activeStep + 1} / ${executionTrace.length} · ${step.kind === "compute" ? step.device : "Activation transfer"}`;
+  $("visuals")
+    .querySelectorAll("[data-token-step]")
+    .forEach((button) => {
+      const selected = Number(button.dataset.tokenStep) === activeStep;
+      if (selected) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+  $("stepDetail").textContent =
+    step.kind === "compute"
+      ? `${step.device} processes layers ${step.firstLayer}–${step.lastLayer}. Weights: ${step.weightsGB.toFixed(2)} GB; KV cache: ${step.cacheGB.toFixed(2)} GB; effective reads: ${step.readGB.toFixed(2)} GB/token. ${step.bound} limits this block. Elapsed: ${fmtMs(step.start)} → ${fmtMs(step.end)}.`
+      : `${step.activationMB.toFixed(2)} MB of activations passes from ${step.from} to ${step.to}. ${step.path}. Weights and KV cache remain on their owning devices. Estimated transfer: ${fmtMs(step.seconds)}. Elapsed: ${fmtMs(step.start)} → ${fmtMs(step.end)}.`;
+  $("layerMap")
+    .querySelectorAll("[data-flow-device]")
+    .forEach((segment) =>
+      segment.classList.toggle(
+        "selected",
+        step.kind === "compute" && segment.dataset.flowDevice === step.device,
+      ),
+    );
 }
 
-function flow(result, layers) {
-  if (!result.used.length) {
-    return `<div style="color:var(--mut)">No valid device configured.</div>`;
-  }
-
-  return result.used
-    .map((d, i) => {
-      const link =
-        i < result.links.length
-          ? `<div class="link">transfer<br>${fmtMs(result.links[i])}</div>`
-          : "";
-
-      return deviceBox(d, layers) + link;
-    })
+function renderFlow(config, result) {
+  executionTrace = window.LLMPlanner.executionSteps(config, result);
+  activeStep = Math.min(activeStep, executionTrace.length - 1);
+  const blocks = executionTrace.filter((step) => step.kind === "compute");
+  $("layerMap").innerHTML = blocks
+    .map(
+      (step) =>
+        `<span class="layer-segment ${step.color}Fill" data-flow-device="${step.device}" style="flex:${step.layers}" title="${step.device}: layers ${step.firstLayer}–${step.lastLayer}">${step.device.replace(" / RAM", "")}<small>${step.firstLayer}–${step.lastLayer}</small></span>`,
+    )
     .join("");
+  $("layerMap").setAttribute(
+    "aria-label",
+    blocks
+      .map(
+        (step) =>
+          `${step.device}: layers ${step.firstLayer} to ${step.lastLayer}`,
+      )
+      .join("; "),
+  );
+  $("flowSummary").textContent =
+    `${config.values.layers} layers in execution order · ${result.storeLayer.toFixed(3)} GB stored per layer · ${fmtMs(result.transferSeconds)} in transfers.`;
+  $("visuals").innerHTML = executionTrace
+    .map((step, index) =>
+      step.kind === "compute"
+        ? `<li class="compute-phase ${step.color}"><button type="button" data-token-step="${index}"><span class="phase-number">${index + 1}</span><span class="phase-device">${step.device}<strong>Layers ${step.firstLayer}–${step.lastLayer}</strong></span><span class="phase-memory"><span>${step.weightsGB.toFixed(2)} GB weights + ${step.cacheGB.toFixed(2)} GB KV</span><small>${step.freeGB.toFixed(2)} GB free · ${step.bound} bound</small></span><span class="phase-time">${fmtMs(step.seconds)}<small>compute</small></span></button></li>`
+        : `<li class="transfer-phase"><button type="button" data-token-step="${index}"><span class="phase-arrow" aria-hidden="true">↓</span><span>${step.from.replace(" / RAM", "")} → ${step.to.replace(" / RAM", "")}<small>${step.activationMB.toFixed(2)} MB activations · ${step.path}</small></span><span class="phase-time">${fmtMs(step.seconds)}</span></button></li>`,
+    )
+    .join("");
+  selectTokenStep(activeStep);
 }
 
 function setBar(el, pct, label) {
@@ -332,7 +369,20 @@ function clearMetrics(message) {
   $("topVram").className = "mval red";
   $("subStatus").textContent =
     "An estimate is available after the inputs and capacity are valid.";
-  $("visuals").textContent = message;
+  $("visuals").replaceChildren();
+  const empty = document.createElement("li");
+  empty.className = "flow-empty";
+  empty.textContent = message;
+  $("visuals").append(empty);
+  executionTrace = [];
+  $("layerMap").replaceChildren();
+  $("layerMap").setAttribute("aria-label", "No feasible placement");
+  $("flowSummary").textContent =
+    "A complete placement needs valid inputs and enough usable memory.";
+  $("stepPosition").textContent = "No token path available";
+  $("stepDetail").textContent = "";
+  $("previousStep").disabled = true;
+  $("nextStep").disabled = true;
   for (const id of ["barOpt", "barSingle"]) setBar($(id), 0, "Unavailable");
   $("axis").replaceChildren();
   $("comparisonGain").textContent = "";
@@ -397,7 +447,7 @@ function calc() {
     "mval " + (result.status === "FULLY IN VRAM" ? "green" : "blueText");
   $("subStatus").textContent =
     `Stored ${result.storedGB.toFixed(2)} GB; reads ${result.activeReadGB.toFixed(2)} GB/token; compute ${result.computeTflopPerToken.toFixed(3)} TFLOP/token; transfers ${fmtMs(result.transferSeconds)}. Single-session decode estimate.`;
-  $("visuals").innerHTML = flow(opt, config.values.layers);
+  renderFlow(config, result);
   const max = niceMax(Math.max(result.tps, tpsSingle || 0, 1));
   $("barOpt").className = "bar blue";
   setBar($("barOpt"), (100 * result.tps) / max, result.tps.toFixed(2) + " t/s");
@@ -788,6 +838,14 @@ function initGuide() {
   });
 }
 
+$("previousStep").addEventListener("click", () =>
+  selectTokenStep(activeStep - 1),
+);
+$("nextStep").addEventListener("click", () => selectTokenStep(activeStep + 1));
+$("visuals").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-token-step]");
+  if (button) selectTokenStep(Number(button.dataset.tokenStep));
+});
 renderControls();
 enhanceHelp();
 initGuide();

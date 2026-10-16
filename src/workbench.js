@@ -5,6 +5,7 @@
   const el = (id) => document.getElementById(id);
   let config = null;
   let cache = null;
+  let applyingPreset = false;
   const gb = (value) =>
     value.toLocaleString("en", {
       minimumFractionDigits: 2,
@@ -13,7 +14,18 @@
 
   function options(id, items) {
     el(id).replaceChildren(
-      ...items.map((item) => {
+      ...[
+        {
+          id: "custom",
+          name:
+            id === "modelPreset"
+              ? "Custom model — edit values below"
+              : id === "hardwarePreset"
+                ? "Custom machine — edit each GPU below"
+                : "Custom bytes per parameter",
+        },
+        ...items,
+      ].map((item) => {
         const option = document.createElement("option");
         option.value = item.id;
         option.textContent = item.name;
@@ -142,7 +154,43 @@
   }
 
   window.updateWorkbench = function (next, result) {
+    if (!applyingPreset && config && next) {
+      const modelKeys = [
+        "totalB",
+        "activeB",
+        "bytesParam",
+        "layers",
+        "kvGB",
+        "kvReadGB",
+        "flopParam",
+      ];
+      if (modelKeys.some((key) => config.values[key] !== next.values[key])) {
+        el("modelPreset").value = "custom";
+        el("quantPreset").value = "custom";
+        modelNote();
+      }
+      const hostKeys = ["ramGB", "cpuTf", "ramBw", "actMB"];
+      const gpuKeys = Object.keys(engine.FIELDS).filter((key) =>
+        /^(vram|bw|tf|reserve)\d$/.test(key),
+      );
+      if (
+        [...hostKeys, ...gpuKeys].some(
+          (key) => config.values[key] !== next.values[key],
+        ) ||
+        config.transfer !== next.transfer ||
+        JSON.stringify(config.pcie) !== JSON.stringify(next.pcie)
+      ) {
+        el("hardwarePreset").value = "custom";
+        hardwareNote();
+      }
+    }
     config = next;
+    el("applyModel").disabled = !config || el("modelPreset").value === "custom";
+    el("applyHardware").disabled =
+      !config || el("hardwarePreset").value === "custom";
+    el("configurationMode").textContent = applyingPreset
+      ? "Preset loaded · editable"
+      : "Custom setup";
     renderMemory(result);
     renderPlanner();
   };
@@ -151,6 +199,13 @@
     const model = planner.MODELS.find(
       (item) => item.id === el("modelPreset").value,
     );
+    el("applyModel").disabled = !config || !model;
+    if (!model) {
+      el("modelPresetNote").textContent =
+        "Enter your own parameter count, weight size, layers and cache below. Every model input remains editable.";
+      el("modelPresetSource").hidden = true;
+      return;
+    }
     el("modelPresetNote").textContent = model.note;
     el("modelPresetSource").hidden = !model.source;
     if (model.source) el("modelPresetSource").href = model.source;
@@ -160,7 +215,13 @@
     const hardware = planner.HARDWARE.find(
       (item) => item.id === el("hardwarePreset").value,
     );
+    el("applyHardware").disabled = !config || !hardware;
     el("hardwarePresetNote").replaceChildren();
+    if (!hardware) {
+      el("hardwarePresetNote").textContent =
+        "Set independent VRAM, bandwidth, effective compute, reservation and PCIe values for each card.";
+      return;
+    }
     const facts = hardware.cards
       ? [
           `${hardware.cards} × ${hardware.vram} GB VRAM`,
@@ -185,22 +246,49 @@
   options("modelPreset", planner.MODELS);
   options("quantPreset", planner.QUANTIZATIONS);
   options("hardwarePreset", planner.HARDWARE);
-  el("quantPreset").value = "q4";
+  el("quantPreset").value = "custom";
   modelNote();
   hardwareNote();
   // Navigation must preserve shared settings in the URL fragment.
   document
-    .querySelectorAll('.site-nav a[href^="#"], .intro a[href^="#"]')
+    .querySelectorAll('.site-nav a[href^="#"], .toolbar-link, .save-setup-link')
     .forEach((link) =>
       link.addEventListener("click", (event) => {
         event.preventDefault();
         document
           .querySelector(link.getAttribute("href"))
           ?.scrollIntoView({ block: "start" });
+        if (link.getAttribute("href") === "#comparison")
+          el("scenarioName").focus({ preventScroll: true });
       }),
     );
   el("modelPreset").addEventListener("change", modelNote);
   el("hardwarePreset").addEventListener("change", hardwareNote);
+  function markManualInput(event) {
+    const id = event.target.id.replace(/^(num|range)-/, "");
+    if (
+      [
+        "totalB",
+        "activeB",
+        "bytesParam",
+        "layers",
+        "kvGB",
+        "kvReadGB",
+        "flopParam",
+      ].includes(id) ||
+      event.target.name === "mode"
+    ) {
+      el("modelPreset").value = "custom";
+      el("quantPreset").value = "custom";
+      modelNote();
+    } else {
+      el("hardwarePreset").value = "custom";
+      hardwareNote();
+    }
+    el("configurationMode").textContent = "Custom setup";
+  }
+  el("controls").addEventListener("input", markManualInput);
+  el("controls").addEventListener("change", markManualInput);
   for (const id of ["kvHeads", "headDim", "contextTokens", "cacheBytes"])
     el(id).addEventListener("input", () => {
       el("cacheStatus").textContent = "";
@@ -219,17 +307,22 @@
       );
       el("kvHeads").value = model.kvHeads;
       el("headDim").value = model.headDim;
+      applyingPreset = true;
       applyConfig(next);
+      applyingPreset = false;
       el("presetStatus").textContent =
         `${model.name} applied with the selected weight format and KV cache. Hardware kept.`;
     } catch (error) {
+      applyingPreset = false;
       el("presetStatus").textContent = error.message;
     }
   });
   el("applyHardware").addEventListener("click", () => {
     if (!config) return;
     const id = el("hardwarePreset").value;
+    applyingPreset = true;
     applyConfig(planner.applyHardware(config, id));
+    applyingPreset = false;
     el("presetStatus").textContent =
       "Hardware profile applied. Model and KV storage kept. All four GPU slots and host settings updated.";
   });
@@ -263,4 +356,13 @@
     valid ? initial : null,
     valid ? engine.estimate(initial) : null,
   );
+  const resultsPanel = el("results");
+  function pinResultsWhenTheyFit() {
+    resultsPanel.classList.toggle(
+      "sticky-results",
+      innerWidth > 1180 && resultsPanel.offsetHeight < innerHeight - 100,
+    );
+  }
+  new ResizeObserver(pinResultsWhenTheyFit).observe(resultsPanel);
+  window.addEventListener("resize", pinResultsWhenTheyFit);
 })();

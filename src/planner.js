@@ -159,9 +159,10 @@
 
   function applyModel(config, id, quantizationId, cache) {
     const model = MODELS.find((item) => item.id === id);
-    const quantization = QUANTIZATIONS.find(
-      (item) => item.id === quantizationId,
-    );
+    const quantization =
+      quantizationId === "custom"
+        ? { bytes: config.values.bytesParam }
+        : QUANTIZATIONS.find((item) => item.id === quantizationId);
     if (!model || !quantization)
       throw new Error("Choose a model and weight format.");
     const next = engine.parseConfig(engine.serializeConfig(config));
@@ -259,6 +260,58 @@
     });
   }
 
+  function executionSteps(config, result = engine.estimate(config)) {
+    if (!result.optimal) return [];
+    const steps = [];
+    let elapsed = 0;
+    let layer = 1;
+    result.optimal.used.forEach((device, index) => {
+      const weightsGB =
+        (result.weightGB * device.assigned) / config.values.layers;
+      const cacheGB =
+        (config.values.kvGB * device.assigned) / config.values.layers;
+      steps.push({
+        kind: "compute",
+        device: device.name,
+        color: device.color,
+        firstLayer: layer,
+        lastLayer: layer + device.assigned - 1,
+        layers: device.assigned,
+        weightsGB,
+        cacheGB,
+        freeGB: Math.max(0, device.availableGB - weightsGB - cacheGB),
+        readGB: (result.activeReadGB * device.assigned) / config.values.layers,
+        bound: device.mem >= device.cmp ? "Memory bandwidth" : "Compute",
+        seconds: device.time,
+        start: elapsed,
+        end: elapsed + device.time,
+      });
+      elapsed += device.time;
+      layer += device.assigned;
+      if (index < result.optimal.links.length) {
+        const next = result.optimal.used[index + 1];
+        const seconds = result.optimal.links[index];
+        steps.push({
+          kind: "transfer",
+          from: device.name,
+          to: next.name,
+          path:
+            device.kind === "cpu" || next.kind === "cpu"
+              ? "GPU ↔ host RAM / CPU"
+              : config.transfer === "host"
+                ? "Via host RAM"
+                : "Direct P2P",
+          activationMB: config.values.actMB,
+          seconds,
+          start: elapsed,
+          end: elapsed + seconds,
+        });
+        elapsed += seconds;
+      }
+    });
+    return steps;
+  }
+
   function report(config) {
     const canonical = engine.parseConfig(engine.serializeConfig(config));
     const result = engine.estimate(canonical);
@@ -312,6 +365,7 @@
     applyHardware,
     contextSweep,
     memoryBudget,
+    executionSteps,
     report,
   });
 });

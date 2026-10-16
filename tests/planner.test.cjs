@@ -117,3 +117,60 @@ test("reports include actual results, memory placement, limits and a round-tripp
   for (let i = 1; i <= 4; i++) config.values["vram" + i] = 0;
   assert.match(planner.report(config), /Placement: DOES NOT FIT/);
 });
+
+test("execution traces cover every layer once and conserve compute, transfer time and stored memory", () => {
+  const config = engine.createDefaultConfig();
+  const result = engine.estimate(config);
+  const steps = planner.executionSteps(config, result);
+  assert.deepEqual(
+    steps.map((step) => step.kind),
+    ["compute", "transfer", "compute", "transfer", "compute"],
+  );
+  const blocks = steps.filter((step) => step.kind === "compute");
+  assert.deepEqual(
+    blocks.map((step) => [step.device, step.firstLayer, step.lastLayer]),
+    [
+      ["GPU 1", 1, 18],
+      ["GPU 2", 19, 37],
+      ["GPU 3", 38, 48],
+    ],
+  );
+  assert.ok(
+    Math.abs(
+      blocks.reduce((sum, step) => sum + step.weightsGB + step.cacheGB, 0) -
+        result.storedGB,
+    ) < 1e-10,
+  );
+  assert.equal(steps[0].start, 0);
+  for (let i = 1; i < steps.length; i++)
+    assert.equal(steps[i].start, steps[i - 1].end);
+  assert.ok(Math.abs(steps.at(-1).end - result.optimal.total) < 1e-12);
+  for (const step of steps.filter((step) => step.kind === "transfer")) {
+    assert.equal(step.activationMB, 16);
+    assert.equal(step.path, "Direct P2P");
+  }
+});
+
+test("traces distinguish host staging and CPU offload, and do not invent an infeasible allocation", () => {
+  const config = engine.createDefaultConfig();
+  config.transfer = "host";
+  assert.ok(
+    planner.executionSteps(config).some((step) => step.path === "Via host RAM"),
+  );
+  config.values.vram2 = 0;
+  config.values.vram3 = 0;
+  const cpuTrace = planner.executionSteps(config);
+  assert.ok(cpuTrace.some((step) => step.device === "CPU / RAM"));
+  assert.ok(cpuTrace.some((step) => step.path === "GPU ↔ host RAM / CPU"));
+  config.values.vram1 = 0;
+  config.values.ramGB = 0;
+  assert.deepEqual(planner.executionSteps(config), []);
+});
+
+test("architecture presets accept an arbitrary custom weight size without changing it", () => {
+  const config = engine.createDefaultConfig();
+  config.values.bytesParam = 0.49321;
+  const next = planner.applyModel(config, "llama31-8b", "custom", cache);
+  assert.equal(next.values.bytesParam, 0.49321);
+  assert.equal(next.values.totalB, 8);
+});
