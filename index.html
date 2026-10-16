@@ -8,122 +8,437 @@
       content="Compare local LLM decode configurations, memory capacity, CPU offload and multi-GPU transfers. Save scenarios and share reproducible estimates."
     />
     <meta name="color-scheme" content="dark" />
-    <title>LLM Multi-GPU Optimizer</title>
+    <title>LLM Calculator — local inference hardware planner</title>
+    <link rel="canonical" href="https://llm-calculator.piotrzmudadev.com/" />
+    <meta
+      property="og:title"
+      content="LLM Calculator — plan your local inference setup"
+    />
+    <meta
+      property="og:description"
+      content="Explore VRAM, KV cache, context length and multi-GPU layer placement. Compare and share reproducible hardware estimates."
+    />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:url"
+      content="https://llm-calculator.piotrzmudadev.com/"
+    />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="src/styles.css" />
+    <link rel="stylesheet" href="src/site.css" />
   </head>
 
   <body>
     <a class="skip-link" href="#controls">Skip to configuration</a>
     <main class="dashboard" id="main">
-      <div class="header">
-        <div class="title">
-          <h1>LLM Multi-GPU Optimizer</h1>
-          <p id="subStatus">
-            Roofline decode estimator for contiguous layer/block split.
-            Tensor-parallel results require calibration.
+      <nav class="site-nav" aria-label="Main navigation">
+        <a class="brand" href="#main"
+          ><img src="assets/favicon.svg" alt="" width="32" height="32" />LLM
+          Calculator<span class="release">v3</span></a
+        >
+        <div class="nav-links">
+          <a href="#calculator">Calculator</a
+          ><a href="#kv-planner">Context planner</a
+          ><a href="#comparison">Compare</a
+          ><a href="https://github.com/BloedeBleidd/LLM-calculator"
+            >GitHub <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </nav>
+      <section class="intro" aria-labelledby="introTitle">
+        <div>
+          <p class="eyebrow">
+            <span class="status-dot"></span>Local inference / Hardware planning
+          </p>
+          <h1 id="introTitle">
+            Will it fit?<br /><span>What will slow it down?</span>
+          </h1>
+          <p class="intro-copy">
+            Explore the trade-off between model size, context and hardware.
+            Follow each layer through your GPUs and RAM, then compare the setups
+            that make sense.
+          </p>
+          <a class="text-link" href="#presets"
+            >Start with a preset <span aria-hidden="true">↓</span></a
+          >
+        </div>
+        <div
+          class="intro-diagram"
+          aria-label="A token passes sequentially through GPU and CPU layer blocks"
+        >
+          <div class="diagram-label">
+            <span>ONE TOKEN / LAYER SPLIT</span><span>01 → L</span>
+          </div>
+          <div class="diagram-chain">
+            <span>GPU 1<small>weights + KV</small></span
+            ><b aria-hidden="true">→</b
+            ><span>GPU 2<small>weights + KV</small></span
+            ><b aria-hidden="true">→</b
+            ><span>CPU<small>optional offload</small></span>
+          </div>
+          <div class="diagram-foot">
+            <span>Memory bandwidth</span><span>Compute</span
+            ><span>Transfer time</span>
+          </div>
+          <p>
+            Single-session decode estimates. Every input is editable; no model
+            is downloaded.
           </p>
         </div>
+      </section>
 
-        <div class="metrics">
-          <div class="metric">
-            <span class="mlabel">Single-session throughput</span>
-            <span class="mval" id="topTps">—</span>
+      <section
+        class="preset-section"
+        id="presets"
+        aria-labelledby="presetsTitle"
+      >
+        <div class="section-heading">
+          <span class="section-index">01</span>
+          <div>
+            <h2 id="presetsTitle">Choose a starting point</h2>
+            <p>
+              Apply a model and a machine independently, then fine-tune the
+              inputs below.
+            </p>
           </div>
-          <div class="metric">
-            <span class="mlabel">Latency</span>
-            <span class="mval" id="topLat">—</span>
-          </div>
-          <div class="metric">
-            <span class="mlabel">Layer Split</span>
-            <span class="mval" id="topSplit">—</span>
-          </div>
-          <div class="metric">
-            <span class="mlabel">Placement Status</span>
-            <span class="mval" id="topVram">NOT CALCULATED</span>
-          </div>
-          <button class="help-btn" id="openGuide" type="button">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-            Guide
-          </button>
         </div>
-      </div>
+        <div class="preset-grid">
+          <div class="preset-panel">
+            <label for="modelPreset">Model architecture</label
+            ><select id="modelPreset"></select>
+            <label for="quantPreset">Weight storage</label
+            ><select id="quantPreset"></select>
+            <button class="primary-button" id="applyModel" type="button">
+              Apply model preset
+            </button>
+            <p id="modelPresetNote" class="helper-copy"></p>
+            <a
+              id="modelPresetSource"
+              class="text-link"
+              href="https://github.com/meta-llama/llama-models/blob/main/models/sku_list.py"
+              >Architecture source ↗</a
+            >
+            <p class="helper-copy">
+              Quantized weight profiles include an illustrative metadata
+              allowance. Replace bytes per parameter with your actual file size
+              / parameter count.
+            </p>
+          </div>
+          <div class="preset-panel">
+            <label for="hardwarePreset">Hardware profile</label
+            ><select id="hardwarePreset"></select>
+            <div id="hardwarePresetNote" class="hardware-facts"></div>
+            <button id="applyHardware" type="button">
+              Apply hardware profile
+            </button>
+            <p class="helper-copy">
+              Generic examples, not GPU specifications or measured benchmarks.
+              Profiles use host-staged transfers; enter your sustained
+              bandwidth, effective compute and actual PCIe topology.
+            </p>
+          </div>
+        </div>
+        <p class="inline-status" id="presetStatus" role="status"></p>
+      </section>
 
-      <section class="workspace" aria-label="Configuration tools">
-        <div class="workspace-actions">
-          <button id="shareConfig" type="button">Share configuration</button>
-          <button id="exportConfig" type="button">Export JSON</button>
-          <button id="importConfig" type="button">Import JSON</button>
-          <button id="resetConfig" type="button">Reset defaults</button>
+      <section
+        id="calculator"
+        class="calculator-section"
+        aria-labelledby="calculatorTitle"
+      >
+        <div class="section-heading">
+          <span class="section-index">02</span>
+          <div>
+            <h2 id="calculatorTitle">Your inference setup</h2>
+            <p>
+              Live estimates for the current inputs. Memory and bandwidth use
+              decimal GB.
+            </p>
+          </div>
+        </div>
+        <div class="header">
+          <div class="title">
+            <h3>Decode estimate</h3>
+            <p id="subStatus">
+              Roofline decode estimator for contiguous layer/block split.
+              Tensor-parallel results require calibration.
+            </p>
+          </div>
+
+          <div class="metrics">
+            <div class="metric">
+              <span class="mlabel">Single-session throughput</span>
+              <span class="mval" id="topTps">—</span>
+            </div>
+            <div class="metric">
+              <span class="mlabel">Latency</span>
+              <span class="mval" id="topLat">—</span>
+            </div>
+            <div class="metric">
+              <span class="mlabel">Layer Split</span>
+              <span class="mval" id="topSplit">—</span>
+            </div>
+            <div class="metric">
+              <span class="mlabel">Placement Status</span>
+              <span class="mval" id="topVram">NOT CALCULATED</span>
+            </div>
+            <button class="help-btn" id="openGuide" type="button">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              Guide
+            </button>
+          </div>
+        </div>
+
+        <section class="workspace" aria-label="Configuration tools">
+          <div class="workspace-actions">
+            <button id="shareConfig" type="button">Share configuration</button>
+            <button id="exportConfig" type="button">Export JSON</button>
+            <button id="exportReport" type="button">Download report</button>
+            <button id="importConfig" type="button">Import JSON</button>
+            <button id="resetConfig" type="button">Reset defaults</button>
+            <input
+              id="configFile"
+              type="file"
+              accept=".json,application/json"
+              hidden
+            />
+          </div>
+          <p id="workspaceStatus" role="status" aria-live="polite"></p>
           <input
-            id="configFile"
-            type="file"
-            accept=".json,application/json"
+            id="sharedLink"
+            class="shared-link"
+            aria-label="Configuration link"
+            type="url"
+            readonly
             hidden
           />
-        </div>
-        <p id="workspaceStatus" role="status" aria-live="polite"></p>
-        <input
-          id="sharedLink"
-          class="shared-link"
-          aria-label="Configuration link"
-          type="url"
-          readonly
+        </section>
+        <p
+          class="calculation-notice"
+          id="calculationNotice"
+          role="alert"
           hidden
-        />
+        ></p>
+        <noscript
+          ><p class="calculation-notice">
+            Enable JavaScript to calculate estimates. The source and methodology
+            remain available below.
+          </p></noscript
+        >
+        <div
+          class="gpu-visuals"
+          id="visuals"
+          aria-label="Selected layer allocation"
+        ></div>
+
+        <div class="chart">
+          <div class="chart-row">
+            <div class="chart-label">Best estimated split</div>
+            <div class="bar-area">
+              <div class="bar blue" id="barOpt">0.00 t/s</div>
+            </div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-label">Best single GPU + CPU</div>
+            <div class="bar-area">
+              <div class="bar gray" id="barSingle">0.00 t/s</div>
+            </div>
+          </div>
+          <div class="axis" id="axis"></div>
+          <p class="comparison-gain" id="comparisonGain"></p>
+        </div>
+
+        <section class="memory-budget" aria-labelledby="memoryTitle">
+          <div class="budget-heading">
+            <h3 id="memoryTitle">Memory budget</h3>
+            <p id="memorySummary">Waiting for valid inputs.</p>
+          </div>
+          <dl class="memory-totals">
+            <div>
+              <dt>Model weights</dt>
+              <dd id="memoryWeights">—</dd>
+            </div>
+            <div>
+              <dt>KV cache</dt>
+              <dd id="memoryCache">—</dd>
+            </div>
+            <div>
+              <dt>Usable GPU memory</dt>
+              <dd id="memoryGpu">—</dd>
+            </div>
+            <div>
+              <dt>GPU reservations</dt>
+              <dd id="memoryReserved">—</dd>
+            </div>
+          </dl>
+          <div
+            class="table-scroll"
+            tabindex="0"
+            role="region"
+            aria-label="Memory budget per device"
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Device</th>
+                  <th scope="col">Layers</th>
+                  <th scope="col">Weights</th>
+                  <th scope="col">KV cache</th>
+                  <th scope="col">Usable</th>
+                  <th scope="col">Free after placement</th>
+                </tr>
+              </thead>
+              <tbody id="memoryRows"></tbody>
+            </table>
+          </div>
+          <p class="helper-copy">
+            Uniform layer storage. GPU reservations are excluded from usable
+            memory; CPU RAM is the usable amount you entered. Runtime buffers
+            must be reserved separately.
+          </p>
+        </section>
+
+        <div class="controls" id="controls" tabindex="-1"></div>
       </section>
-      <p
-        class="calculation-notice"
-        id="calculationNotice"
-        role="alert"
-        hidden
-      ></p>
-      <noscript
-        ><p class="calculation-notice">
-          Enable JavaScript to calculate estimates. The source and methodology
-          remain available below.
-        </p></noscript
+
+      <section
+        class="planner-section"
+        id="kv-planner"
+        aria-labelledby="plannerTitle"
       >
-      <div
-        class="gpu-visuals"
-        id="visuals"
-        aria-label="Selected layer allocation"
-      ></div>
-
-      <div class="chart">
-        <div class="chart-row">
-          <div class="chart-label">Best estimated split</div>
-          <div class="bar-area">
-            <div class="bar blue" id="barOpt">0.00 t/s</div>
+        <div class="section-heading">
+          <span class="section-index">03</span>
+          <div>
+            <h2 id="plannerTitle">How much context can you keep?</h2>
+            <p>
+              Calculate a full-attention KV cache, then explore the same machine
+              at longer contexts.
+            </p>
           </div>
         </div>
-        <div class="chart-row">
-          <div class="chart-label">Best single GPU + CPU</div>
-          <div class="bar-area">
-            <div class="bar gray" id="barSingle">0.00 t/s</div>
+        <div class="planner-grid">
+          <div class="planner-inputs">
+            <p class="helper-copy">
+              Uses the <strong id="plannerLayers">—</strong> layers in your
+              current configuration. Presets fill the KV architecture; custom
+              models require your own head counts.
+            </p>
+            <div class="planner-fields">
+              <label for="kvHeads"
+                >KV heads<input
+                  type="number"
+                  id="kvHeads"
+                  value="8"
+                  min="1"
+                  max="1024"
+                  step="1" /></label
+              ><label for="headDim"
+                >Head dimension<input
+                  type="number"
+                  id="headDim"
+                  value="128"
+                  min="1"
+                  max="4096"
+                  step="1" /></label
+              ><label for="contextTokens"
+                >Context tokens<input
+                  type="number"
+                  id="contextTokens"
+                  value="8192"
+                  min="1"
+                  max="1048576"
+                  step="1"
+              /></label>
+              <div class="planner-field">
+                <label for="cacheBytes">KV precision</label
+                ><select id="cacheBytes">
+                  <option value="2">FP16 / BF16 · 2 bytes</option>
+                  <option value="1">8-bit · 1 byte</option>
+                  <option value="0.5">4-bit · 0.5 bytes</option>
+                  <option value="4">FP32 · 4 bytes</option>
+                </select>
+              </div>
+            </div>
+            <div class="cache-result">
+              <span>KV storage / one sequence</span
+              ><strong id="cacheGB">—</strong><small id="cacheDetail">—</small>
+            </div>
+            <p class="formula">
+              2 × layers × KV heads × head dimension × tokens × bytes
+            </p>
+            <button class="primary-button" id="applyCache" type="button">
+              Apply cache to calculator
+            </button>
+            <p id="cacheStatus" class="inline-status" role="status"></p>
+            <p id="cacheNotice" class="helper-copy"></p>
+            <p class="helper-copy">
+              Assumes a fully occupied, single-sequence cache read once per
+              generated token. Packed 4/8-bit sizes exclude scales and block
+              metadata. Does not model sliding windows, MLA or hybrid attention.
+              <a
+                href="https://developer.nvidia.com/blog/mastering-llm-techniques-inference-optimization/"
+                >KV cache reference ↗</a
+              >
+            </p>
+          </div>
+          <div class="context-sweep">
+            <h3>Context sensitivity</h3>
+            <p class="helper-copy">
+              A what-if analysis using the KV architecture on the left and your
+              current weights and hardware. Current calculator inputs stay
+              unchanged until you apply the cache.
+            </p>
+            <div
+              class="table-scroll"
+              tabindex="0"
+              role="region"
+              aria-label="Context length comparison"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Context</th>
+                    <th scope="col">KV cache</th>
+                    <th scope="col">Model + KV</th>
+                    <th scope="col">Decode estimate</th>
+                    <th scope="col">Placement</th>
+                  </tr>
+                </thead>
+                <tbody id="contextRows"></tbody>
+              </table>
+            </div>
+            <p id="sweepNotice" class="helper-copy">—</p>
           </div>
         </div>
-        <div class="axis" id="axis"></div>
-        <p class="comparison-gain" id="comparisonGain"></p>
-      </div>
+      </section>
 
-      <div class="controls" id="controls" tabindex="-1"></div>
-      <section class="scenarios" aria-labelledby="scenariosTitle">
-        <div class="scenario-heading">
+      <section
+        class="scenarios"
+        id="comparison"
+        aria-labelledby="scenariosTitle"
+      >
+        <div class="section-heading">
+          <span class="section-index">04</span>
           <div>
             <h2 id="scenariosTitle">Compare configurations</h2>
+            <p>Keep the alternatives worth coming back to.</p>
+          </div>
+        </div>
+        <div class="scenario-heading">
+          <div>
             <p>
               Save up to six snapshots. Loading one restores every input;
               comparisons stay on this browser.
@@ -169,7 +484,8 @@
         <span>Engineering estimates, not measured benchmarks.</span
         ><a href="https://github.com/BloedeBleidd/LLM-calculator"
           >Source &amp; README</a
-        ><a href="docs/METHODOLOGY.md">Calculation methodology</a>
+        ><a href="docs/METHODOLOGY.md">Calculation methodology</a
+        ><a href="https://piotrzmudadev.com">By Piotr Żmuda ↗</a>
       </footer>
     </main>
 
@@ -956,6 +1272,8 @@ CPU_block_time = max(CPU_memory_time, CPU_compute_time)</pre>
     </div>
 
     <script src="src/engine.js"></script>
+    <script src="src/planner.js"></script>
     <script src="src/app.js"></script>
+    <script src="src/workbench.js"></script>
   </body>
 </html>

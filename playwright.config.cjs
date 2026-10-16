@@ -4,12 +4,12 @@ module.exports = defineConfig({
   fullyParallel: true,
   workers: 3,
   use: {
-    baseURL: "http://127.0.0.1:8795/LLM-calculator/",
+    baseURL: "http://127.0.0.1:8795/",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "node scripts/serve.cjs",
-    url: "http://127.0.0.1:8795/LLM-calculator/",
+    command: "npm run preview",
+    url: "http://127.0.0.1:8795/",
     reuseExistingServer: !process.env.CI,
   },
   projects: [

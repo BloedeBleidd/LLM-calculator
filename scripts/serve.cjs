@@ -8,6 +8,10 @@ const allowed = new Set([
   "src/app.js",
   "src/engine.js",
   "src/styles.css",
+  "src/site.css",
+  "src/planner.js",
+  "src/workbench.js",
+  "assets/favicon.svg",
   "docs/METHODOLOGY.md",
   "README.md",
   "LICENSE",
@@ -16,6 +20,7 @@ const types = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
   ".md": "text/plain; charset=utf-8",
 };
 const server = http.createServer(async (request, response) => {

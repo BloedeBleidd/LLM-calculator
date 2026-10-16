@@ -179,12 +179,14 @@ function renderControls() {
     });
   });
 
-  document.querySelectorAll("select,input[type='radio']").forEach((el) => {
-    el.addEventListener("change", () => {
-      toggleMoE();
-      calc();
+  $("controls")
+    .querySelectorAll("select,input[type='radio']")
+    .forEach((el) => {
+      el.addEventListener("change", () => {
+        toggleMoE();
+        calc();
+      });
     });
-  });
 }
 
 function readConfig() {
@@ -340,7 +342,7 @@ function calc() {
   const config = readConfig();
   const errors = engine.validateConfig(config);
   document
-    .querySelectorAll("[aria-invalid]")
+    .querySelectorAll("#controls [aria-invalid]")
     .forEach((el) => el.removeAttribute("aria-invalid"));
   const notice = $("calculationNotice");
   notice.hidden = errors.length === 0;
@@ -348,10 +350,18 @@ function calc() {
   for (const error of errors)
     $("num-" + error.field)?.setAttribute("aria-invalid", "true");
   currentConfig = null;
-  for (const id of ["saveScenario", "shareConfig", "exportConfig"])
+  for (const id of [
+    "saveScenario",
+    "shareConfig",
+    "exportConfig",
+    "exportReport",
+    "applyModel",
+    "applyHardware",
+  ])
     $(id).disabled = errors.length > 0;
   if (errors.length) {
     clearMetrics("CHECK INPUTS");
+    window.updateWorkbench?.(null, null);
     return;
   }
   currentConfig = config;
@@ -372,6 +382,7 @@ function calc() {
     clearMetrics("DOES NOT FIT");
     notice.hidden = false;
     notice.textContent = `The model needs ${result.storedGB.toFixed(2)} GB. Available GPUs and usable RAM can hold ${result.gpuCap + result.cpuCap} of ${config.values.layers} complete layers. Increase usable memory, reduce model/cache size, or change quantization. Layers cannot be split into fractions.`;
+    window.updateWorkbench?.(config, result);
     return;
   }
   const opt = result.optimal;
@@ -404,6 +415,7 @@ function calc() {
     (_, i) =>
       `<span>${((max * i) / 5).toFixed(max < 10 ? 1 : 0)}${i === 5 ? " t/s" : ""}</span>`,
   ).join("");
+  window.updateWorkbench?.(config, result);
 }
 
 function renderScenarios() {

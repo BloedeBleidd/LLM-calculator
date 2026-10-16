@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://llm-calculator.piotrzmudadev.com/sitemap.xml

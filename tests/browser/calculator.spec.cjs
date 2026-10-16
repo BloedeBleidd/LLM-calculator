@@ -15,7 +15,7 @@ test("defaults are valid, sliders agree with numeric values, and the page works 
   await expect(page.locator("#topTps")).toContainText(/\d+\.\d+ t\/s/);
   await expect(page.locator("#calculationNotice")).toBeHidden();
   const mismatches = await page
-    .locator("input[type=number]")
+    .locator("#controls input[type=number]")
     .evaluateAll((numbers) =>
       numbers
         .filter(
@@ -147,6 +147,10 @@ test("shared configurations work in a fresh browser and editing clears the stale
   await expect(other.locator("#topTps")).toHaveText(
     await page.locator("#topTps").textContent(),
   );
+  await other
+    .getByRole("link", { name: "Context planner", exact: true })
+    .click();
+  await expect(other).toHaveURL(url);
   await field(page, "actMB", 40);
   await expect(page).not.toHaveURL(/#config=/);
   await expect(

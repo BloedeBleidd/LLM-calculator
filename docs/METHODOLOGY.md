@@ -28,6 +28,29 @@ Capacity is `floor(usable_GB / storage_per_layer)`, capped at `L`. A machine can
 
 Infeasible configurations have no latency or tokens/second estimate. CPU/RAM is no longer an unlimited fallback.
 
+## KV cache planner and context sensitivity
+
+For one fully occupied, full-attention sequence:
+
+```text
+KV_bytes/token = 2 * layers * KV_heads * head_dimension * bytes_per_element
+KV_bytes       = KV_bytes/token * context_tokens
+KV_GB          = KV_bytes / 10^9
+KV_GiB         = KV_bytes / 2^30
+```
+
+The factor of two accounts for keys and values. GQA uses the number of **KV heads**, not query heads; MQA uses one. For 32 layers, 8 KV heads, head dimension 128, 8192 tokens and FP16/BF16 (2 bytes), the result is 1,073,741,824 bytes: exactly 1 GiB, or 1.073741824 decimal GB. See [NVIDIA's inference optimization explanation](https://developer.nvidia.com/blog/mastering-llm-techniques-inference-optimization/) for the cache memory relationship.
+
+The helper assumes each layer has the same KV shape and retains the complete context. It does not model sliding-window attention, latent KV representations, hybrid attention, cache block metadata or batched inference. The 4-bit/8-bit options describe packed data only; scales and padding require additional capacity. Applying the result sets both storage and effective reads to the occupied cache size, a full-read starting assumption that can be overridden manually.
+
+The context table evaluates 2048 through 131072 tokens independently, keeping weights, hardware and transfer settings fixed. It replaces the cache storage and reads for each hypothetical point. It does not alter the current configuration and does not validate a model's supported context length. The largest fully-GPU sample is not a continuous maximum or an engine guarantee.
+
+## Presets, memory budget and reports
+
+The two Llama 3.1 presets use layer/head dimensions from [Meta's architecture registry](https://github.com/meta-llama/llama-models/blob/main/models/sku_list.py) with rounded 8B/70B parameter counts. Other architecture examples and every hardware profile are illustrative. No profile's tokens/second is a measured hardware result. Quantized weight profiles use bits/8 with an explicitly stated 5% or 10% example allowance; storage overhead is format-dependent and should be replaced with actual weight bytes per parameter.
+
+The memory budget distributes weight and cache storage proportionally to assigned layers. Free memory is usable device capacity minus that placement; GPU reservations have already been subtracted. Devices receiving no layers remain unused. An infeasible configuration has no placement, so its allocated bytes are zero. Reports contain the current validated inputs and results, rather than any un-applied planner preview. Configuration schema v1, existing JSON files and shared links remain compatible.
+
 ## Timing and optimization
 
 ```text
